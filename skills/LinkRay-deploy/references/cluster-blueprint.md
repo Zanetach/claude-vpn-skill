@@ -724,72 +724,80 @@ Wrapper service shape:
 
 The wrapper must stay localhost-only. It is a presentation layer, not a node service.
 
-When routing rules are requested, the wrapper should add visible strategy groups and map `meta-rules-dat` providers to those groups. The user should see service groups in the client proxy page, not only raw proxy nodes:
+When routing rules are requested, the wrapper should add visible strategy groups and map `meta-rules-dat` providers to those groups. The user should see v2ray-agent-style service groups in the client proxy page, not only raw proxy nodes.
+
+Required strategy groups for the full profile:
+
+```text
+AUTO
+自动选择
+故障转移
+负载均衡
+节点选择
+流媒体
+手动切换
+全球代理
+DNS_Proxy
+Telegram
+Google
+YouTube
+Netflix
+Spotify
+HBO
+Bing
+OpenAI
+ClaudeAI
+Disney
+GitHub
+国内媒体
+本地直连
+漏网之鱼
+```
+
+Example group shape:
 
 ```yaml
 proxy-groups:
-  - name: PROXY
+  - name: 自动选择
+    type: url-test
+    url: http://www.gstatic.com/generate_204
+    interval: 300
+    tolerance: 80
+    proxies:
+      - node1-vless-reality
+      - node2-vless-xhttp
+  - name: 故障转移
+    type: fallback
+    url: http://www.gstatic.com/generate_204
+    interval: 300
+    tolerance: 80
+    proxies:
+      - node1-vless-reality
+      - node2-vless-xhttp
+  - name: 负载均衡
+    type: load-balance
+    url: http://www.gstatic.com/generate_204
+    interval: 300
+    strategy: consistent-hashing
+    proxies:
+      - node1-vless-reality
+      - node2-vless-xhttp
+  - name: 节点选择
     type: select
     proxies:
-      - AUTO
+      - 手动切换
+      - 自动选择
+      - 故障转移
+      - 负载均衡
       - DIRECT
       - node1-vless-reality
       - node2-vless-xhttp
   - name: OpenAI
     type: select
     proxies:
-      - AUTO
-      - DIRECT
-      - node1-vless-reality
-      - node2-vless-xhttp
-  - name: GitHub
-    type: select
-    proxies:
-      - AUTO
-      - DIRECT
-      - node1-vless-reality
-      - node2-vless-xhttp
-  - name: Google
-    type: select
-    proxies:
-      - AUTO
-      - DIRECT
-      - node1-vless-reality
-      - node2-vless-xhttp
-  - name: YouTube
-    type: select
-    proxies:
-      - AUTO
-      - DIRECT
-      - node1-vless-reality
-      - node2-vless-xhttp
-  - name: Netflix
-    type: select
-    proxies:
-      - AUTO
-      - DIRECT
-      - node1-vless-reality
-      - node2-vless-xhttp
-  - name: Telegram
-    type: select
-    proxies:
-      - AUTO
-      - DIRECT
-      - node1-vless-reality
-      - node2-vless-xhttp
-  - name: Global
-    type: select
-    proxies:
-      - AUTO
-      - DIRECT
-      - node1-vless-reality
-      - node2-vless-xhttp
-  - name: AUTO
-    type: url-test
-    url: http://www.gstatic.com/generate_204
-    interval: 300
-    tolerance: 80
-    proxies:
+      - 节点选择
+      - 自动选择
+      - 故障转移
       - node1-vless-reality
       - node2-vless-xhttp
 ```
@@ -861,6 +869,41 @@ rule-providers:
     interval: 86400
     path: ./ruleset/geosite-netflix.mrs
     url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/netflix.mrs"
+  spotify:
+    type: http
+    behavior: domain
+    format: mrs
+    interval: 86400
+    path: ./ruleset/geosite-spotify.mrs
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/spotify.mrs"
+  hbo:
+    type: http
+    behavior: domain
+    format: mrs
+    interval: 86400
+    path: ./ruleset/geosite-hbo.mrs
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/hbo.mrs"
+  bing:
+    type: http
+    behavior: domain
+    format: mrs
+    interval: 86400
+    path: ./ruleset/geosite-bing.mrs
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/bing.mrs"
+  disney:
+    type: http
+    behavior: domain
+    format: mrs
+    interval: 86400
+    path: ./ruleset/geosite-disney.mrs
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/disney.mrs"
+  anthropic:
+    type: http
+    behavior: domain
+    format: mrs
+    interval: 86400
+    path: ./ruleset/geosite-anthropic.mrs
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/anthropic.mrs"
   telegram:
     type: http
     behavior: ipcidr
@@ -885,10 +928,15 @@ rules:
   - RULE-SET,google,Google
   - RULE-SET,youtube,YouTube
   - RULE-SET,netflix,Netflix
-  - RULE-SET,geolocation-!cn,Global
-  - RULE-SET,cn,DIRECT
-  - RULE-SET,cn-ip,DIRECT,no-resolve
-  - MATCH,Global
+  - RULE-SET,spotify,Spotify
+  - RULE-SET,hbo,HBO
+  - RULE-SET,bing,Bing
+  - RULE-SET,disney,Disney
+  - RULE-SET,anthropic,ClaudeAI
+  - RULE-SET,geolocation-!cn,全球代理
+  - RULE-SET,cn,本地直连
+  - RULE-SET,cn-ip,本地直连,no-resolve
+  - MATCH,漏网之鱼
 ```
 
 Validate with `mihomo -t`. If the client only shows `PROXY` and `AUTO`, it is still using an old cached profile or the wrapper is returning only generic groups. Delete and re-import the subscription after changing the wrapper.
@@ -946,7 +994,7 @@ curl -fsS 'https://sub.example.com/store/<subId>' |
 
 curl -fsS 'https://sub.example.com/store/<subId>' -o /tmp/linkray-store.yaml
 grep -nE '^(mixed-port|proxies|proxy-groups|rules):' /tmp/linkray-store.yaml
-grep -nE '^[[:space:]]*- name: (PROXY|OpenAI|GitHub|Google|YouTube|Netflix|Telegram|Global|AUTO)$' /tmp/linkray-store.yaml
+grep -nE '^[[:space:]]*- name: (AUTO|自动选择|故障转移|负载均衡|节点选择|流媒体|手动切换|全球代理|DNS_Proxy|Telegram|Google|YouTube|Netflix|Spotify|HBO|Bing|OpenAI|ClaudeAI|Disney|GitHub|国内媒体|本地直连|漏网之鱼)$' /tmp/linkray-store.yaml
 grep -nE '^(rule-providers|rules):|RULE-SET' /tmp/linkray-store.yaml
 grep -c '^[[:space:]]*name: ' /tmp/linkray-store.yaml
 mihomo -t -f /tmp/linkray-store.yaml

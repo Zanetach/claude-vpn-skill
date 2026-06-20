@@ -570,13 +570,23 @@ Attach that same client identity to every inbound that should appear in the subs
 user001_<random>
   node1-vless-xhttp-tls
   node1-trojan-tls
+  node1-vless-reality
+  node1-trojan-reality
+  node1-shadowsocks-2022
+  node1-hysteria2
 
 # Cluster mode also attaches:
   node2-vless-xhttp-tls
   node2-trojan-tls
+  node2-vless-reality
+  node2-trojan-reality
+  node2-shadowsocks-2022
+  node2-hysteria2
 ```
 
 Do not create unrelated subIds per protocol. That fragments the subscription and makes quota/expiry management inconsistent.
+
+Trojan TLS and Trojan Reality are separate profiles and can coexist in the same subscription. Use direct DNS-only hostnames for both, and verify each advertised host:port before handing the subscription to a user.
 
 3X-UI v3 subscriptions query normalized `clients` and `client_inbounds` rows, not only the legacy `settings.clients` JSON. Prefer API/UI creation so both the JSON and normalized tables are updated. If debugging an empty subscription, inspect both:
 

@@ -79,6 +79,7 @@ Recommended single-point layout:
 - Use unique remarks/tags per node/protocol so subscriptions are readable, such as `node1-vless`, `node2-trojan`.
 - Use DNS-01 certificates for Cloudflare-managed domains when possible, especially wildcard `example.com` + `*.example.com`.
 - Keep subscription service behind a reverse proxy and set `subDomain`; remember direct localhost tests need `Host: sub.example.com` or they will 403.
+- If the panel UI should hand users a Clash/Mihomo-ready link, keep `subPath=/sub/` but set the externally displayed `subURI` to `https://sub.example.com/clash/`. Do not set `subPath=/clash/`; that collides with the native Clash route.
 - Treat Reality as a transport security option, not a universal wrapper. Use it with TCP VLESS/Trojan inbounds. Do not force Reality onto Hysteria2 or Shadowsocks.
 - Hysteria2 must use Xray `protocol=hysteria` with `settings.version=2` and `streamSettings.network=hysteria`; TCP+TLS on the same port is not Hysteria2.
 - Persist BBR as `net.core.default_qdisc=fq` and `net.ipv4.tcp_congestion_control=bbr` where the kernel supports it.
@@ -111,6 +112,7 @@ Do not present panel-exported internal links as the primary deliverable. The clu
 | Making both VPS share one DNS name | Use distinct node domains or host overrides; avoid random DNS routing |
 | Creating separate users per protocol | Create one user/subId and attach it to every selected inbound |
 | Exposing node panel ports publicly | Use private networking or firewall allow only the main panel IP |
+| Making users manually edit `/sub/` to `/clash/` | Configure the displayed `subURI` to `/clash/` while leaving `subPath=/sub/` |
 | Saying "all protocols use Reality" | Add VLESS/Trojan Reality profiles; leave Hysteria2 as QUIC/TLS and Shadowsocks as direct |
 | Creating Hysteria2 as TCP+TLS | Set `streamSettings.network=hysteria` and verify UDP listening |
 | Adding too many protocols first | Start with VLESS/XHTTP/TLS; add Reality/Hysteria2/Trojan/SS after the base subscription works |

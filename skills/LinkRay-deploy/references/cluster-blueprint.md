@@ -131,6 +131,19 @@ Clash path: /clash/
 Clash enable: true when Clash/Mihomo users exist
 ```
 
+When Clash/Mihomo is the primary target client, avoid making users manually change `/sub/` to `/clash/`. Keep the route paths distinct, but make the panel's displayed generic subscription URI point at the Clash route:
+
+```text
+subPath=/sub/
+subURI=https://sub.example.com/clash/
+subJsonPath=/json/
+subJsonURI=https://sub.example.com/json/
+subClashPath=/clash/
+subClashURI=https://sub.example.com/clash/
+```
+
+Do not set `subPath=/clash/`; 3X-UI already registers `/clash/<subId>`, and duplicate routes can crash the panel at startup.
+
 If editing SQLite directly, stop `x-ui`, update `settings`, then restart. Prefer UI/API where available because setting keys may change between releases.
 
 Never apply a blanket `subEnable=false` on the main panel.

@@ -1,13 +1,13 @@
 ---
 name: x-ui-cluster-deploy
-description: Use when deploying or operating a 3X-UI single-point or cluster setup with a main panel, local or remote VPS nodes, multiple protocols, user/client creation, subscription aggregation, Clash/Mihomo subscriptions, node failover, or one subscription URL across multiple Xray inbounds.
+description: Use when deploying or operating a 3X-UI or LinkRay-branded single-point or cluster setup with a main panel, local or remote VPS nodes, Reality, Hysteria2, XHTTP, user/client creation, subscription aggregation, Clash/Mihomo subscriptions, node failover, or one subscription URL across multiple Xray inbounds.
 ---
 
 # X-UI Cluster Deploy
 
 ## Overview
 
-Deploy and operate a 3X-UI single-point or cluster setup where one main panel publishes a single subscription URL and local or remote VPS nodes host the actual proxy inbounds. Use this for "one VPS with subscription", "two VPS nodes", "multiple protocols", "create users", "single subscription", "multi-node 3x-ui", and similar requests.
+Deploy and operate a 3X-UI single-point or cluster setup where one main panel publishes a single subscription URL and local or remote VPS nodes host the actual proxy inbounds. Use this for "one VPS with subscription", "two VPS nodes", "multiple protocols", "Reality", "Hysteria2", "create users", "single subscription", "multi-node 3x-ui", "LinkRay panel name", and similar requests.
 
 This is a subscription-centered workflow, not the quick single-node `x-ui-deploy` workflow. Do not disable subscriptions. Remote node panels must not be localhost-only unless a private overlay network or tunnel makes them reachable from the main panel.
 
@@ -25,7 +25,7 @@ This is a subscription-centered workflow, not the quick single-node `x-ui-deploy
    - Mode: single-point or cluster.
    - Node VPS list for cluster mode: IP, SSH user/port/auth, node domain, management API endpoint.
    - Root domain and DNS provider credentials.
-   - Protocols to expose: start with `vless-xhttp-tls`; add `trojan-tls` and `shadowsocks-2022` only if requested.
+   - Protocols to expose: start with `vless-xhttp-tls`; add `vless-reality`, `trojan-reality`, `hysteria2`, `trojan-tls`, and `shadowsocks-2022` only when requested and client support is clear.
    - Users: email/remark, quota, expiry, IP limit, and `subId` policy.
    - Security choice for node API reachability in cluster mode: WireGuard/Tailscale/private network preferred; otherwise firewall allow only the main panel IP.
 
@@ -41,6 +41,7 @@ This is a subscription-centered workflow, not the quick single-node `x-ui-deploy
    - Create inbounds per node and protocol.
    - Create clients once on the main panel and attach the same client identity/subId to every intended inbound.
    - Configure UFW and Fail2Ban after SSH access and API reachability are verified.
+   - If branding is requested, change only the HTTPS reverse-proxy presentation layer, not the `x-ui` service name, database path, API paths, or node sync identifiers.
    - Verify certificate auto-renewal, subscription decoding, and remote-node API access.
    - Output the subscription URLs, not a pile of separate links.
 
@@ -78,6 +79,8 @@ Recommended single-point layout:
 - Use unique remarks/tags per node/protocol so subscriptions are readable, such as `node1-vless`, `node2-trojan`.
 - Use DNS-01 certificates for Cloudflare-managed domains when possible, especially wildcard `example.com` + `*.example.com`.
 - Keep subscription service behind a reverse proxy and set `subDomain`; remember direct localhost tests need `Host: sub.example.com` or they will 403.
+- Treat Reality as a transport security option, not a universal wrapper. Use it with TCP VLESS/Trojan inbounds. Do not force Reality onto Hysteria2 or Shadowsocks.
+- Hysteria2 must use Xray `protocol=hysteria` with `settings.version=2` and `streamSettings.network=hysteria`; TCP+TLS on the same port is not Hysteria2.
 - Persist BBR as `net.core.default_qdisc=fq` and `net.ipv4.tcp_congestion_control=bbr` where the kernel supports it.
 - Configure Fail2Ban's `sshd` jail for the actual SSH port, not only the default port 22.
 - Prefer PostgreSQL on the main panel if managing many clients or many nodes; SQLite is acceptable for a small two-node personal deployment.
@@ -108,7 +111,10 @@ Do not present panel-exported internal links as the primary deliverable. The clu
 | Making both VPS share one DNS name | Use distinct node domains or host overrides; avoid random DNS routing |
 | Creating separate users per protocol | Create one user/subId and attach it to every selected inbound |
 | Exposing node panel ports publicly | Use private networking or firewall allow only the main panel IP |
-| Adding too many protocols first | Start with VLESS/XHTTP/TLS; add Trojan/SS after the base subscription works |
+| Saying "all protocols use Reality" | Add VLESS/Trojan Reality profiles; leave Hysteria2 as QUIC/TLS and Shadowsocks as direct |
+| Creating Hysteria2 as TCP+TLS | Set `streamSettings.network=hysteria` and verify UDP listening |
+| Adding too many protocols first | Start with VLESS/XHTTP/TLS; add Reality/Hysteria2/Trojan/SS after the base subscription works |
+| Renaming 3X-UI internals to a brand | Only rewrite page text at Nginx/Caddy; do not rename services, DBs, API paths, or tags |
 
 ## References
 

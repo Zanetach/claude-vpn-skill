@@ -49,7 +49,7 @@ node1.example.com  A/AAAA  VPS-A
 node2.example.com  A/AAAA  VPS-B
 ```
 
-Use Cloudflare orange-cloud only where the selected protocol transport supports it. VLESS XHTTP over TLS can sit behind Cloudflare; direct Trojan or Shadowsocks usually should be DNS-only unless separately wrapped/terminated.
+Use Cloudflare orange-cloud only where the selected protocol transport supports it. VLESS XHTTP over TLS can sit behind Cloudflare; Reality, Hysteria2, direct Trojan, and Shadowsocks should use DNS-only direct hostnames unless a separate compatible fronting layer is deliberately designed.
 
 Choose single-point when the user has one VPS or explicitly asks for "单点". Choose cluster when the user has two or more VPS nodes or asks for remote-node failover/aggregation.
 
@@ -62,9 +62,13 @@ panel.example.com  A  VPS-A-IP  DNS only
 sub.example.com    A  VPS-A-IP  DNS only
 node1.example.com  A  VPS-A-IP  Proxied when using VLESS/XHTTP over TLS
 node2.example.com  A  VPS-B-IP  Proxied when using VLESS/XHTTP over TLS
+direct1.example.com A VPS-A-IP  DNS only for Reality/Trojan/Hysteria2/SS
+direct2.example.com A VPS-B-IP  DNS only for Reality/Trojan/Hysteria2/SS
 ```
 
 Use DNS-only for `panel` and `sub` during first deployment. `sub` can remain DNS-only; only proxy it if the subscription domain is intentionally fronted by Cloudflare and tested with the selected clients.
+
+Do not point Reality or Hysteria2 links at orange-cloud hostnames. In subscriptions, use the `nodeN.example.com` orange-cloud hosts only for XHTTP profiles and use direct DNS-only hostnames for TCP/UDP direct protocols.
 
 Use Cloudflare API tokens with least privilege:
 
@@ -277,6 +281,39 @@ server {
 
 For remote node VPS-B, use the same `nodeN.example.com` server block and proxy its XHTTP path to the node-local Xray port, for example `127.0.0.1:10002`.
 
+### Optional LinkRay Presentation Branding
+
+If the operator wants the panel to display `LinkRay`, change only the reverse-proxy presentation layer. Do not rename the `x-ui` service, `/usr/local/x-ui`, `x-ui.db`, API paths, node tags, or subscription paths.
+
+Nginx can rewrite bundled frontend text without rebuilding 3X-UI:
+
+```nginx
+location / {
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header Accept-Encoding "";
+    add_header Cache-Control "no-store, no-cache, must-revalidate" always;
+    sub_filter_once off;
+    sub_filter_types application/javascript text/javascript text/css application/json;
+    sub_filter 3X-UI LinkRay;
+    sub_filter 3x-ui LinkRay;
+    sub_filter X-UI LinkRay;
+    sub_filter Linkray LinkRay;
+    proxy_pass http://127.0.0.1:2053;
+}
+```
+
+Verify branding with a direct resource fetch, not only the browser cache:
+
+```bash
+curl --noproxy '*' --resolve panel.example.com:443:<VPS-A-IP> \
+  -ks https://panel.example.com/<basePath>/assets/<login-js> |
+  grep -E 'LinkRay|Linkray|3X-UI'
+```
+
 ## 4. Remote Node API Access
 
 Skip this section in single-point mode. Local inbounds on the main panel do not need a remote node registration.
@@ -365,10 +402,16 @@ Add optional protocols only when requested:
 ```text
 node1-trojan-tls
 node1-ss-2022
+node1-vless-reality
+node1-trojan-reality
+node1-hysteria2
 
 # Cluster mode also adds:
 node2-trojan-tls
 node2-ss-2022
+node2-vless-reality
+node2-trojan-reality
+node2-hysteria2
 ```
 
 Use distinct tags/remarks. If using Cloudflare, keep protocol/transport compatibility in mind:
@@ -376,8 +419,13 @@ Use distinct tags/remarks. If using Cloudflare, keep protocol/transport compatib
 | Protocol | Good default | Notes |
 |---|---|---|
 | VLESS | XHTTP + TLS + Nginx path | Best fit for Cloudflare/CDN fronting |
+| VLESS Reality | TCP + Reality direct | DNS-only direct hostname; do not orange-cloud |
+| Trojan Reality | TCP + Reality direct | Supported by 3X-UI share links; DNS-only direct hostname |
+| Hysteria2 | Hysteria transport + TLS direct | UDP/QUIC; must listen on UDP, not TCP |
 | Trojan | TLS direct | Usually DNS-only unless fallback/SNI is designed |
 | Shadowsocks 2022 | Direct port | Do not route through Cloudflare HTTP proxy |
+
+Reality is not a blanket switch for every protocol. For "all protocols should have Reality", create Reality-capable VLESS/Trojan profiles and keep Hysteria2 and Shadowsocks as their own direct protocols.
 
 For single-point local inbounds, create them directly on the main panel. For remote node inbounds, create or sync them from the main panel so the main database knows their `node_id` and can include them in subscriptions.
 
@@ -415,6 +463,78 @@ For Nginx-terminated XHTTP, the Xray inbound should listen on localhost with tra
 ```
 
 `trustedXForwardedFor` avoids Xray splitHTTP/XHTTP warnings when a local reverse proxy sets forwarded headers.
+
+For VLESS/Trojan Reality, create TCP direct inbounds on DNS-only hostnames:
+
+```json
+{
+  "protocol": "vless",
+  "port": 9444,
+  "streamSettings": {
+    "network": "tcp",
+    "security": "reality",
+    "tcpSettings": {"acceptProxyProtocol": false, "header": {"type": "none"}},
+    "realitySettings": {
+      "target": "www.cloudflare.com:443",
+      "serverNames": ["www.cloudflare.com"],
+      "privateKey": "<server-private-key>",
+      "shortIds": ["<8-hex-short-id>"],
+      "settings": {
+        "publicKey": "<server-public-key>",
+        "fingerprint": "chrome",
+        "spiderX": "/"
+      }
+    }
+  },
+  "share_addr_strategy": "custom",
+  "share_addr": "direct1.example.com"
+}
+```
+
+Generate keys on the target node:
+
+```bash
+/usr/local/x-ui/bin/xray-linux-amd64 x25519
+```
+
+Use a separate port for Trojan Reality, for example `9445/tcp`, to keep troubleshooting simple. 3X-UI can emit `trojan://...security=reality...` links when the inbound stream security is Reality.
+
+For Hysteria2, keep the protocol as `hysteria` and set version `2` in settings. The transport must be `network: "hysteria"`:
+
+```json
+{
+  "protocol": "hysteria",
+  "port": 8444,
+  "settings": {
+    "version": 2,
+    "clients": [{"auth": "<auth-token>", "email": "user001", "subId": "<subId>", "enable": true}]
+  },
+  "streamSettings": {
+    "network": "hysteria",
+    "security": "tls",
+    "hysteriaSettings": {
+      "version": 2,
+      "auth": "",
+      "udpIdleTimeout": 60,
+      "masquerade": {"type": ""}
+    },
+    "tlsSettings": {
+      "serverName": "direct1.example.com",
+      "alpn": ["h3"],
+      "certificates": [{
+        "certificateFile": "/etc/ssl/example/fullchain.cer",
+        "keyFile": "/etc/ssl/example/example.com.key"
+      }]
+    }
+  },
+  "share_addr_strategy": "custom",
+  "share_addr": "direct1.example.com"
+}
+```
+
+After creating or editing Hysteria2, verify `ss -lunp | grep :8444`. If `8444` appears only as TCP, the inbound is not Hysteria2 even if the remark says so.
+
+For remote node direct inbounds, verify both databases when using direct SQLite/API repair: the main panel row must keep `node_id` and `share_addr_strategy=custom`, while the remote node local row must exist and listen. Node sync may overwrite the main row back to `share_addr_strategy=node`; re-check the decoded subscription and fix the main row or the node sync payload before handoff.
 
 ## 6. Users and Subscription Aggregation
 
@@ -480,6 +600,9 @@ ufw default allow outgoing
 ufw allow 2222/tcp
 ufw allow 80/tcp
 ufw allow 443/tcp
+ufw allow 9444/tcp  # VLESS Reality, when enabled
+ufw allow 9445/tcp  # Trojan Reality, when enabled
+ufw allow 8444/udp  # Hysteria2, when enabled
 ufw --force enable
 ufw status verbose
 ```
@@ -495,6 +618,9 @@ ufw allow 80/tcp
 ufw allow 443/tcp
 ufw allow from <VPS-A-IP> to any port 2053 proto tcp
 ufw deny 2053/tcp
+ufw allow 9444/tcp  # VLESS Reality, when enabled
+ufw allow 9445/tcp  # Trojan Reality, when enabled
+ufw allow 8444/udp  # Hysteria2, when enabled
 ufw --force enable
 ufw status verbose
 ```
@@ -528,7 +654,8 @@ Before handing over the subscription:
 ```bash
 # On every VPS
 systemctl is-active x-ui
-ss -tlnp | grep -E ':(443|10882|<panel-port>) '
+ss -tlnp | grep -E ':(443|10882|<panel-port>|9444|9445) '
+ss -lunp | grep -E ':(8444) ' || true
 
 # Cluster mode only: from VPS-A to each remote node
 curl -fsS -H "Authorization: Bearer <NODE_API_TOKEN>" \
@@ -541,6 +668,9 @@ curl -I https://sub.example.com/json/<subId>
 
 # Decode the generic subscription and count links.
 curl -fsS https://sub.example.com/sub/<subId> | base64 -d
+
+# Confirm expected schemes/security combinations.
+curl -fsS https://sub.example.com/sub/<subId> | base64 -d | grep -E 'security=reality|hysteria2://'
 
 # Confirm TLS and source routing without local proxy or fake-IP DNS.
 curl --noproxy '*' --resolve panel.example.com:443:<VPS-A-IP> \
@@ -557,6 +687,8 @@ crontab -l | grep acme.sh
 ```
 
 Then import the Clash/Mihomo subscription in a client and verify it contains every expected node/protocol remark exactly once.
+
+Expected count example for two nodes with XHTTP, Trojan TLS, SS2022, VLESS Reality, Trojan Reality, and Hysteria2: 12 generic links total, including four Reality links and two Hysteria2 links.
 
 ## 8. Output Format
 

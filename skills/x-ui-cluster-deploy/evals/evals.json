@@ -24,6 +24,18 @@
       "name": "secure-remote-node-api",
       "prompt": "主面板怎么管理第二台 VPS，面板端口要不要开放？",
       "expected_output": "The skill should require remote node API reachability from the main panel through WireGuard/Tailscale/private network or firewall allowlisting only the main panel IP. It should reject public world-open panel API ports and note that localhost binding blocks remote management unless an explicit tunnel or overlay route is used."
+    },
+    {
+      "id": 4,
+      "name": "reality-and-hysteria2-boundaries",
+      "prompt": "两个节点，协议都要配置 Reality，同时也要 Hysteria2。",
+      "expected_output": "The skill should explain that Reality is not a universal wrapper. It should create or recommend VLESS Reality and Trojan Reality profiles on DNS-only direct hostnames, keep Hysteria2 as protocol=hysteria with version=2 and streamSettings.network=hysteria, and avoid forcing Reality onto Shadowsocks or Hysteria2. It should verify TCP Reality ports and UDP Hysteria2 listening."
+    },
+    {
+      "id": 5,
+      "name": "linkray-branding",
+      "prompt": "把 3x-ui 面板显示名改成 LinkRay，不能影响使用。",
+      "expected_output": "The skill should change only the reverse-proxy presentation layer, such as Nginx sub_filter rewriting 3X-UI/3x-ui/X-UI to LinkRay, and should not rename the x-ui service, /usr/local/x-ui, x-ui.db, API paths, node tags, or subscription paths. It should verify the fetched JS output and handle browser cache."
     }
   ]
 }

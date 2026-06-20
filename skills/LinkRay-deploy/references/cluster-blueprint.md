@@ -710,7 +710,19 @@ Public user-facing adapted URL:
 https://store.example.com/api-ss-<random>/download/linkray-full?target=ClashMeta&includeUnsupportedProxy=true&prettyYaml=true
 ```
 
-For automatic 3X-UI UI-generated user links, prefer a dynamic route on the existing subscription domain. This avoids creating one Sub-Store subscription item per user:
+For automatic 3X-UI UI-generated user links, prefer a dynamic route on the existing subscription domain. This avoids creating one Sub-Store subscription item per user.
+
+Do not return only the Sub-Store `proxies:` fragment if the target client imports complete Clash/Mihomo profiles. Some clients validate the YAML but show no usable nodes because there is no `proxy-groups` entry. Add a small localhost wrapper that fetches the dynamic Sub-Store output and returns a full profile containing `mixed-port`, `proxies`, `proxy-groups`, and `rules`.
+
+Wrapper service shape:
+
+```text
+127.0.0.1:3012/store/<subId>
+  -> reads 127.0.0.1:3011/api-ss-<random>/download/linkray-dynamic?...url=https://sub.example.com/clash/<subId>
+  -> returns full Clash/Mihomo YAML profile
+```
+
+The wrapper must stay localhost-only. It is a presentation layer, not a node service.
 
 ```nginx
 server {
@@ -726,7 +738,7 @@ server {
         proxy_read_timeout 3600s;
         proxy_send_timeout 3600s;
         proxy_buffering off;
-        proxy_pass http://127.0.0.1:3011/api-ss-<random>/download/linkray-dynamic?target=ClashMeta&includeUnsupportedProxy=true&prettyYaml=true&fakeSub=1&url=https%3A%2F%2Fsub.example.com%2Fclash%2F$linkray_subid;
+        proxy_pass http://127.0.0.1:3012/store/$linkray_subid;
     }
 
     location / {
@@ -762,6 +774,11 @@ grep -c '^[[:space:]]*name: ' /tmp/linkray-full.yaml
 
 curl -fsS 'https://sub.example.com/store/<subId>' |
   awk 'NR==1 {print}'
+
+curl -fsS 'https://sub.example.com/store/<subId>' -o /tmp/linkray-store.yaml
+grep -nE '^(mixed-port|proxies|proxy-groups|rules):' /tmp/linkray-store.yaml
+grep -c '^[[:space:]]*name: ' /tmp/linkray-store.yaml
+mihomo -t -f /tmp/linkray-store.yaml
 ```
 
 ## 6.2 Server Hardening

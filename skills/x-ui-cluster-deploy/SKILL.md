@@ -34,11 +34,14 @@ This is a subscription-centered workflow, not the quick single-node `x-ui-deploy
 3. Deploy in this order:
    - Install 3X-UI on all VPS nodes.
    - Configure DNS and TLS for `panel`, `sub`, and each `nodeN` domain.
+   - Enable BBR on every VPS before traffic testing.
    - Configure the main panel subscription server and reverse proxy.
    - In cluster mode, configure remote node API access so the main panel can call each node.
    - In cluster mode, register remote nodes in the main panel and verify heartbeat.
    - Create inbounds per node and protocol.
    - Create clients once on the main panel and attach the same client identity/subId to every intended inbound.
+   - Configure UFW and Fail2Ban after SSH access and API reachability are verified.
+   - Verify certificate auto-renewal, subscription decoding, and remote-node API access.
    - Output the subscription URLs, not a pile of separate links.
 
 ## Architecture
@@ -73,6 +76,10 @@ Recommended single-point layout:
 - In cluster mode, remote node panel/API ports must not be open to the world. Restrict by firewall or private networking.
 - Use one stable `subId` per user across all selected inbounds and protocols.
 - Use unique remarks/tags per node/protocol so subscriptions are readable, such as `node1-vless`, `node2-trojan`.
+- Use DNS-01 certificates for Cloudflare-managed domains when possible, especially wildcard `example.com` + `*.example.com`.
+- Keep subscription service behind a reverse proxy and set `subDomain`; remember direct localhost tests need `Host: sub.example.com` or they will 403.
+- Persist BBR as `net.core.default_qdisc=fq` and `net.ipv4.tcp_congestion_control=bbr` where the kernel supports it.
+- Configure Fail2Ban's `sshd` jail for the actual SSH port, not only the default port 22.
 - Prefer PostgreSQL on the main panel if managing many clients or many nodes; SQLite is acceptable for a small two-node personal deployment.
 
 ## Subscription Output

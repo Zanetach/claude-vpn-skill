@@ -53,6 +53,34 @@ Use Cloudflare orange-cloud only where the selected protocol transport supports 
 
 Choose single-point when the user has one VPS or explicitly asks for "单点". Choose cluster when the user has two or more VPS nodes or asks for remote-node failover/aggregation.
 
+## 0. Cloudflare DNS Layout
+
+For a two-VPS Cloudflare-backed deployment, create records before issuing certificates:
+
+```text
+panel.example.com  A  VPS-A-IP  DNS only
+sub.example.com    A  VPS-A-IP  DNS only
+node1.example.com  A  VPS-A-IP  Proxied when using VLESS/XHTTP over TLS
+node2.example.com  A  VPS-B-IP  Proxied when using VLESS/XHTTP over TLS
+```
+
+Use DNS-only for `panel` and `sub` during first deployment. `sub` can remain DNS-only; only proxy it if the subscription domain is intentionally fronted by Cloudflare and tested with the selected clients.
+
+Use Cloudflare API tokens with least privilege:
+
+```text
+Zone:DNS:Edit
+Zone:Zone:Read
+Scope: selected zone only
+```
+
+Verify the token before running acme.sh or DNS automation:
+
+```bash
+curl -fsS -H "Authorization: Bearer $CF_Token" \
+  https://api.cloudflare.com/client/v4/user/tokens/verify
+```
+
 ## 1. Install 3X-UI
 
 Install 3X-UI on every VPS, pinning a release if repeatability matters:
@@ -64,6 +92,24 @@ bash <(curl -Ls https://raw.githubusercontent.com/MHSanaei/3x-ui/master/install.
 For unattended installs, 3X-UI supports `XUI_NONINTERACTIVE=1` and writes credentials to `/etc/x-ui/install-result.env`. Read that file as root and store secrets outside chat logs.
 
 Use the same 3X-UI version on all nodes when possible.
+
+Recommended unattended install shape for small clusters:
+
+```bash
+XUI_NONINTERACTIVE=1 \
+XUI_PANEL_PORT=2053 \
+XUI_SSL_MODE=none \
+bash <(curl -Ls https://raw.githubusercontent.com/MHSanaei/3x-ui/master/install.sh)
+```
+
+For the main panel, bind the panel to localhost after install:
+
+```bash
+x-ui setting -listenIP 127.0.0.1
+systemctl restart x-ui
+```
+
+For a public fallback remote-node API, the remote node panel may listen on `0.0.0.0`, but firewall it so only VPS-A can reach the panel port.
 
 ## 2. Main Panel Settings
 
@@ -85,41 +131,151 @@ If editing SQLite directly, stop `x-ui`, update `settings`, then restart. Prefer
 
 Never apply a blanket `subEnable=false` on the main panel.
 
+3X-UI v3 API examples use the panel base path:
+
+```bash
+BASE="/<main-base-path>"
+API="http://127.0.0.1:2053${BASE}/panel/api"
+
+curl -fsS -X POST \
+  -H "Authorization: Bearer <MAIN_API_TOKEN>" \
+  "$API/setting/all"
+```
+
+`/panel/api/setting/all` and `/panel/api/setting/update` are POST endpoints. Do not diagnose them as broken just because GET returns 404.
+
+When `subDomain` is set, the subscription server rejects wrong Host headers with 403. Local tests must include the Host header:
+
+```bash
+curl -H 'Host: sub.example.com' http://127.0.0.1:10882/sub/<subId>
+```
+
+Without the Host header, a 403 is expected and does not mean the `subId` is missing.
+
+## 2.1 TLS Certificates and Auto-Renewal
+
+For Cloudflare-managed domains, prefer DNS-01 wildcard certificates. Install on every VPS that terminates HTTPS:
+
+```bash
+export CF_Token='<cloudflare-api-token>'
+export CF_Email='<account-email>'
+
+curl -fsSL https://get.acme.sh | sh -s email="$CF_Email"
+/root/.acme.sh/acme.sh --set-default-ca --server letsencrypt
+/root/.acme.sh/acme.sh --issue --dns dns_cf \
+  -d example.com -d '*.example.com' --keylength ec-256
+
+mkdir -p /etc/ssl/example
+/root/.acme.sh/acme.sh --install-cert -d example.com --ecc \
+  --fullchain-file /etc/ssl/example/fullchain.cer \
+  --key-file /etc/ssl/example/example.com.key \
+  --reloadcmd 'systemctl reload nginx || true'
+chmod 600 /etc/ssl/example/example.com.key
+```
+
+acme.sh installs a cron entry automatically. Verify it:
+
+```bash
+/root/.acme.sh/acme.sh --list
+crontab -l | grep acme.sh
+```
+
+The `Renew` time from `acme.sh --list` is the next renewal window, not the certificate expiry date. Certificates should renew automatically before expiry and reload Nginx through the install hook.
+
 ## 3. Reverse Proxy
 
 Terminate HTTPS for public names with Nginx/Caddy. Keep 3X-UI web and subscription listeners on localhost where possible.
 
-Nginx pattern for subscription:
+Nginx pattern for the main panel, subscription, and local XHTTP node:
 
 ```nginx
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    '' close;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name panel.example.com sub.example.com node1.example.com;
+    return 301 https://$host$request_uri;
+}
+
 server {
     listen 443 ssl http2;
-    server_name sub.example.com;
+    listen [::]:443 ssl http2;
+    server_name panel.example.com;
 
-    ssl_certificate /root/cert/fullchain.cer;
-    ssl_certificate_key /root/cert/example.com.key;
+    ssl_certificate /etc/ssl/example/fullchain.cer;
+    ssl_certificate_key /etc/ssl/example/example.com.key;
 
-    location /sub/ {
-        proxy_pass http://127.0.0.1:10882/sub/;
+    location / {
+        proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    location /json/ {
-        proxy_pass http://127.0.0.1:10882/json/;
-        proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    location /clash/ {
-        proxy_pass http://127.0.0.1:10882/clash/;
-        proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+        proxy_buffering off;
+        proxy_request_buffering off;
+        proxy_pass http://127.0.0.1:2053;
     }
 }
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name sub.example.com;
+
+    ssl_certificate /etc/ssl/example/fullchain.cer;
+    ssl_certificate_key /etc/ssl/example/example.com.key;
+
+    location / {
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+        proxy_buffering off;
+        proxy_pass http://127.0.0.1:10882;
+    }
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name node1.example.com;
+
+    ssl_certificate /etc/ssl/example/fullchain.cer;
+    ssl_certificate_key /etc/ssl/example/example.com.key;
+
+    location = / { return 204; }
+
+    location ^~ /<xhttp-path-node1> {
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+        proxy_buffering off;
+        proxy_request_buffering off;
+        proxy_pass http://127.0.0.1:<xray-local-port-node1>;
+    }
+
+    location / { return 404; }
+}
 ```
+
+For remote node VPS-B, use the same `nodeN.example.com` server block and proxy its XHTTP path to the node-local Xray port, for example `127.0.0.1:10002`.
 
 ## 4. Remote Node API Access
 
@@ -160,6 +316,35 @@ Inbound sync mode: all for small clusters; selected for production
 
 Click test/probe and require `online` before creating remote inbounds.
 
+API example for testing and adding a remote node from the main panel:
+
+```bash
+curl -fsS -X POST \
+  -H "Authorization: Bearer <MAIN_API_TOKEN>" \
+  -H "Content-Type: application/json" \
+  "$MAIN_API/nodes/test" \
+  --data-binary '{
+    "scheme": "http",
+    "address": "VPS-B-IP",
+    "port": 2053,
+    "basePath": "/<remote-base-path>/",
+    "apiToken": "<REMOTE_API_TOKEN>",
+    "enable": true,
+    "allowPrivateAddress": false
+  }'
+```
+
+If using public fallback management, verify the intended boundary:
+
+```bash
+# From VPS-A: must succeed.
+curl -fsS -H "Authorization: Bearer <REMOTE_API_TOKEN>" \
+  http://VPS-B-IP:2053/<remote-base-path>/panel/api/server/status
+
+# From the operator laptop or arbitrary public source: should timeout or fail.
+curl --connect-timeout 5 http://VPS-B-IP:2053/
+```
+
 ## 5. Inbounds Per Node and Protocol
 
 Single-point minimal:
@@ -196,6 +381,41 @@ Use distinct tags/remarks. If using Cloudflare, keep protocol/transport compatib
 
 For single-point local inbounds, create them directly on the main panel. For remote node inbounds, create or sync them from the main panel so the main database knows their `node_id` and can include them in subscriptions.
 
+For Nginx-terminated XHTTP, the Xray inbound should listen on localhost with transport security `none`, and the subscription should advertise the public TLS host through `externalProxy` or Host overrides:
+
+```json
+{
+  "listen": "127.0.0.1",
+  "port": 10001,
+  "protocol": "vless",
+  "streamSettings": {
+    "network": "xhttp",
+    "security": "none",
+    "xhttpSettings": {
+      "path": "/xh-random",
+      "host": "node1.example.com",
+      "mode": "auto"
+    },
+    "sockopt": {
+      "trustedXForwardedFor": ["127.0.0.1", "::1"],
+      "acceptProxyProtocol": false
+    },
+    "externalProxy": [
+      {
+        "forceTls": "tls",
+        "dest": "node1.example.com",
+        "port": 443,
+        "remark": "node1.example.com",
+        "sni": "node1.example.com",
+        "fingerprint": "chrome"
+      }
+    ]
+  }
+}
+```
+
+`trustedXForwardedFor` avoids Xray splitHTTP/XHTTP warnings when a local reverse proxy sets forwarded headers.
+
 ## 6. Users and Subscription Aggregation
 
 The aggregation key is `subId`.
@@ -225,6 +445,82 @@ user001_<random>
 
 Do not create unrelated subIds per protocol. That fragments the subscription and makes quota/expiry management inconsistent.
 
+3X-UI v3 subscriptions query normalized `clients` and `client_inbounds` rows, not only the legacy `settings.clients` JSON. Prefer API/UI creation so both the JSON and normalized tables are updated. If debugging an empty subscription, inspect both:
+
+```bash
+sqlite3 /etc/x-ui/x-ui.db \
+  "select id,email,sub_id,enable from clients;"
+sqlite3 /etc/x-ui/x-ui.db \
+  "select client_id,inbound_id from client_inbounds;"
+```
+
+An enabled client with the right `sub_id` must be linked to every inbound that should appear in the subscription.
+
+## 6.1 Server Hardening
+
+Enable BBR on every VPS:
+
+```bash
+modprobe tcp_bbr 2>/dev/null || true
+cat >/etc/sysctl.d/99-cyclelink-bbr.conf <<'EOF'
+net.core.default_qdisc=fq
+net.ipv4.tcp_congestion_control=bbr
+EOF
+sysctl --system
+sysctl net.ipv4.tcp_congestion_control net.core.default_qdisc
+lsmod | grep -E '(^tcp_bbr|bbr)' || true
+```
+
+Configure UFW only after confirming SSH access. Example for VPS-A:
+
+```bash
+ufw --force reset
+ufw default deny incoming
+ufw default allow outgoing
+ufw allow 2222/tcp
+ufw allow 80/tcp
+ufw allow 443/tcp
+ufw --force enable
+ufw status verbose
+```
+
+Example for VPS-B public fallback node API:
+
+```bash
+ufw --force reset
+ufw default deny incoming
+ufw default allow outgoing
+ufw allow 2222/tcp
+ufw allow 80/tcp
+ufw allow 443/tcp
+ufw allow from <VPS-A-IP> to any port 2053 proto tcp
+ufw deny 2053/tcp
+ufw --force enable
+ufw status verbose
+```
+
+Configure Fail2Ban for the actual SSH port:
+
+```bash
+cat >/etc/fail2ban/jail.d/cyclelink-sshd.local <<'EOF'
+[sshd]
+enabled = true
+port = 2222
+backend = systemd
+maxretry = 5
+findtime = 10m
+bantime = 1h
+EOF
+
+fail2ban-server -t
+systemctl enable --now fail2ban
+systemctl restart fail2ban
+fail2ban-client status
+fail2ban-client status sshd
+```
+
+Do not add broad Nginx Fail2Ban jails when node domains are behind Cloudflare orange-cloud unless the jail is Cloudflare-aware; otherwise bans may target Cloudflare edge IPs instead of real clients.
+
 ## 7. Verification
 
 Before handing over the subscription:
@@ -242,6 +538,22 @@ curl -fsS -H "Authorization: Bearer <NODE_API_TOKEN>" \
 curl -I https://sub.example.com/sub/<subId>
 curl -I https://sub.example.com/clash/<subId>
 curl -I https://sub.example.com/json/<subId>
+
+# Decode the generic subscription and count links.
+curl -fsS https://sub.example.com/sub/<subId> | base64 -d
+
+# Confirm TLS and source routing without local proxy or fake-IP DNS.
+curl --noproxy '*' --resolve panel.example.com:443:<VPS-A-IP> \
+  -o /dev/null -w '%{http_code} %{ssl_verify_result}\n' \
+  https://panel.example.com/<basePath>/
+
+# Confirm BBR and Fail2Ban.
+sysctl net.ipv4.tcp_congestion_control net.core.default_qdisc
+fail2ban-client status sshd
+
+# Confirm acme.sh renewal is installed.
+/root/.acme.sh/acme.sh --list
+crontab -l | grep acme.sh
 ```
 
 Then import the Clash/Mihomo subscription in a client and verify it contains every expected node/protocol remark exactly once.

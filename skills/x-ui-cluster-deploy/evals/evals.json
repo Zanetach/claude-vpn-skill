@@ -1,0 +1,23 @@
+{
+  "skill_name": "x-ui-cluster-deploy",
+  "evals": [
+    {
+      "id": 1,
+      "name": "two-vps-one-subscription",
+      "prompt": "我有两个 VPS，想用 3x-ui 汇聚成一个订阅地址，还要能创建用户。",
+      "expected_output": "The skill should propose a main-panel architecture: VPS-A hosts the main panel and subscription server, VPS-B is added as a remote node, both nodes have distinct node domains, the main panel publishes /sub/<subId>, /clash/<subId>, and /json/<subId>. It must not recommend running the old single-node flow unchanged, disabling subscriptions, or keeping the remote node panel only on 127.0.0.1 without a private tunnel."
+    },
+    {
+      "id": 2,
+      "name": "multi-protocol-subid-aggregation",
+      "prompt": "两个节点，每个节点 VLESS、Trojan、Shadowsocks，一个用户只给一个订阅。",
+      "expected_output": "The skill should explain that one stable subId is attached to every selected inbound across node1 and node2. The resulting subscription includes node1-vless, node2-vless, node1-trojan, node2-trojan, node1-ss, node2-ss. It should warn that VLESS/XHTTP fits Cloudflare while Trojan/SS are usually direct/DNS-only unless deliberately wrapped."
+    },
+    {
+      "id": 3,
+      "name": "secure-remote-node-api",
+      "prompt": "主面板怎么管理第二台 VPS，面板端口要不要开放？",
+      "expected_output": "The skill should require remote node API reachability from the main panel through WireGuard/Tailscale/private network or firewall allowlisting only the main panel IP. It should reject public world-open panel API ports and note that localhost binding blocks remote management unless an explicit tunnel or overlay route is used."
+    }
+  ]
+}

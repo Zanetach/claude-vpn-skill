@@ -1,0 +1,4 @@
+interface:
+  display_name: "3X-UI Cluster Deploy"
+  short_description: "Deploy clustered 3X-UI with one subscription"
+  default_prompt: "Use $x-ui-cluster-deploy to deploy two 3X-UI VPS nodes with multiple protocols and one subscription URL."

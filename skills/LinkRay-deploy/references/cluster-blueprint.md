@@ -488,8 +488,8 @@ For VLESS/Trojan Reality, create TCP direct inbounds on DNS-only hostnames:
     "security": "reality",
     "tcpSettings": {"acceptProxyProtocol": false, "header": {"type": "none"}},
     "realitySettings": {
-      "target": "www.apple.com:443",
-      "serverNames": ["www.apple.com"],
+      "target": "www.yahoo.com:443",
+      "serverNames": ["www.yahoo.com"],
       "privateKey": "<server-private-key>",
       "shortIds": ["<8-hex-short-id>"],
       "settings": {
@@ -514,7 +514,7 @@ Use a separate port for Trojan Reality, for example `9445/tcp`, to keep troubles
 
 If one node's VLESS Reality port is reachable but intermittently fails Mihomo delay tests, move only that inbound to another allowed direct TCP port such as `8443/tcp`, update both the main-panel row and the remote node's local row, then restart `x-ui` and re-fetch the subscription. Keep the Reality `sni`/`servername` aligned with the server-side `serverNames`.
 
-Do not treat every TLS-looking site as an equally good Reality target. If clients show `Timeout` even though DNS is correct and `nc -vz <node-ip> <port>` succeeds, change only `realitySettings.target` and `realitySettings.serverNames` first, then retest. In practice, `www.apple.com:443`/`www.apple.com` is a safer default than `www.cloudflare.com:443` for this deployment shape; `www.microsoft.com` can work but should be validated with repeated client delay tests before handoff.
+Do not treat every TLS-looking site as an equally good Reality target. If clients show `Timeout` even though DNS is correct and `nc -vz <node-ip> <port>` succeeds, change only `realitySettings.target` and `realitySettings.serverNames` first, then retest. In practice, `www.yahoo.com:443`/`www.yahoo.com` is a safer default than `www.cloudflare.com:443`, `www.microsoft.com:443`, or Apple/iCloud targets for this deployment shape. Xray may explicitly warn against Apple/iCloud Reality targets, and those should not be the default even if they pass a short smoke test.
 
 For Hysteria2, keep the protocol as `hysteria` and set version `2` in settings. The transport must be `network: "hysteria"`:
 

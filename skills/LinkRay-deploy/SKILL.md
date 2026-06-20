@@ -91,6 +91,7 @@ Recommended single-point layout:
 - In direct anti-block mode, keep node traffic on DNS-only hostnames such as `ca.example.com` and `la.example.com`; do not use Cloudflare orange-cloud hostnames or CF preferred IPs for Reality/Vision/Hysteria2 nodes.
 - In direct anti-block mode, the adapted subscription should only expose `vless-reality`, `trojan-reality`, and `hysteria2` direct nodes by default. Disable or filter out `vless-xhttp`, Trojan TLS, and Shadowsocks entries if the goal is a clean direct-only client profile.
 - If the client uses fake-ip DNS and proxy server domains resolve to `198.18.0.0/15`, rewrite direct node `server` values to the VPS IPs while preserving Reality `sni`/`servername` and Hysteria2 `sni`. Otherwise the client may dial the fake IP and show `Timeout`.
+- If Reality nodes still show intermittent `Timeout` after DNS/IP rewrite and the TCP ports are reachable, test the Reality `target`/`serverNames` before changing unrelated parts. Prefer a stable TLS 1.3 target such as `www.apple.com:443`/`www.apple.com`; avoid assuming `www.cloudflare.com` or `www.microsoft.com` will be stable from every VPS/client path. Re-fetch the Clash profile and run multiple Mihomo delay rounds after changing the target.
 - Treat Reality as a transport security option, not a universal wrapper. Use it with TCP VLESS/Trojan inbounds. If the operator wants full protocol coverage, a single subscription can include both Trojan TLS and Trojan Reality as separate profiles. Do not force Reality onto Hysteria2 or Shadowsocks.
 - Hysteria2 must use Xray `protocol=hysteria` with `settings.version=2` and `streamSettings.network=hysteria`; TCP+TLS on the same port is not Hysteria2.
 - Persist BBR as `net.core.default_qdisc=fq` and `net.ipv4.tcp_congestion_control=bbr` where the kernel supports it.
@@ -139,6 +140,7 @@ Do not present panel-exported internal links as the primary deliverable. The clu
 | Adapted profile shows no traffic quota or expiry in the client | Forward the native `subscription-userinfo` response header through the wrapper |
 | Creating one Sub-Store item per 3X-UI user manually | Use a dynamic `/store/<subId>` route with `fakeSub=1&url=<native-clash-url>` |
 | Mixing direct anti-block and CF preferred-IP nodes in one clean mode | Use separate modes; for direct anti-block, expose only Reality/Hysteria2 direct nodes |
+| Reality works sometimes but still times out during client delay tests | Verify the advertised server is the VPS IP, then change Reality `target/serverNames` to a stable TLS site such as `www.apple.com`; if only one VLESS port is flaky, move that inbound to another allowed direct TCP port such as `8443` |
 | Saying "all protocols use Reality" | Add Reality profiles where supported, but keep separate usable profiles such as Trojan TLS when full protocol coverage is requested |
 | Creating Hysteria2 as TCP+TLS | Set `streamSettings.network=hysteria` and verify UDP listening |
 | Adding too many protocols first | Start with VLESS/XHTTP/TLS; add Reality/Hysteria2/Trojan/SS after the base subscription works |

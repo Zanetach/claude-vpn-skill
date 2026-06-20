@@ -488,8 +488,8 @@ For VLESS/Trojan Reality, create TCP direct inbounds on DNS-only hostnames:
     "security": "reality",
     "tcpSettings": {"acceptProxyProtocol": false, "header": {"type": "none"}},
     "realitySettings": {
-      "target": "www.cloudflare.com:443",
-      "serverNames": ["www.cloudflare.com"],
+      "target": "www.apple.com:443",
+      "serverNames": ["www.apple.com"],
       "privateKey": "<server-private-key>",
       "shortIds": ["<8-hex-short-id>"],
       "settings": {
@@ -511,6 +511,10 @@ Generate keys on the target node:
 ```
 
 Use a separate port for Trojan Reality, for example `9445/tcp`, to keep troubleshooting simple. 3X-UI can emit `trojan://...security=reality...` links when the inbound stream security is Reality.
+
+If one node's VLESS Reality port is reachable but intermittently fails Mihomo delay tests, move only that inbound to another allowed direct TCP port such as `8443/tcp`, update both the main-panel row and the remote node's local row, then restart `x-ui` and re-fetch the subscription. Keep the Reality `sni`/`servername` aligned with the server-side `serverNames`.
+
+Do not treat every TLS-looking site as an equally good Reality target. If clients show `Timeout` even though DNS is correct and `nc -vz <node-ip> <port>` succeeds, change only `realitySettings.target` and `realitySettings.serverNames` first, then retest. In practice, `www.apple.com:443`/`www.apple.com` is a safer default than `www.cloudflare.com:443` for this deployment shape; `www.microsoft.com` can work but should be validated with repeated client delay tests before handoff.
 
 For Hysteria2, keep the protocol as `hysteria` and set version `2` in settings. The transport must be `network: "hysteria"`:
 
@@ -668,6 +672,8 @@ for proxy in data.get('proxies', []):
 PY
 mihomo -t -f /tmp/linkray-clash.yaml
 ```
+
+Reality timeout validation should test more than a single green click in the UI. A reliable handoff test is three rounds across all proxies through Mihomo's delay API; Reality nodes should consistently return a delay rather than `503 Service Unavailable` or `Timeout`. If Hysteria2 is stable but Reality is intermittent, focus on Reality target/site choice and direct TCP port choice, not Sub-Store, rule providers, or the Clash wrapper.
 
 For direct anti-block mode, the native 3X-UI source should already contain only:
 

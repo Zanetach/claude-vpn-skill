@@ -86,6 +86,7 @@
 AI 会自动识别自己是哪个 CLI、git clone、复制、清理、确认。整个过程一条指令搞定。
 
 > Gemini CLI 因为走 Extensions 体系不是 1:1 映射，需要手动处理——见方式 B 的备注。
+> 如果要部署单点/多 VPS/多协议/单订阅的 LinkRay 集群，把 `skills/LinkRay-deploy` 也复制到同一个 skills 目录。
 
 #### 📦 方式 B：手动复制（或者想精细控制位置）
 
@@ -106,6 +107,13 @@ git clone https://github.com/henrywen98/claude-vpn-skill.git
 
 > 💡 **项目级安装**：把路径里的 `~/.claude/skills/`（或 `~/.codex/skills/`）换成仓库内的 `.claude/skills/`（或 `.codex/skills/`），skill 只对该项目生效。
 
+LinkRay 集群部署 skill 复制命令：
+
+```bash
+cp -r claude-vpn-skill/skills/LinkRay-deploy ~/.claude/skills/
+cp -r claude-vpn-skill/skills/LinkRay-deploy ~/.codex/skills/
+```
+
 ### 3️⃣ 对你的 AI 说这句话
 
 ```
@@ -125,11 +133,11 @@ git clone https://github.com/henrywen98/claude-vpn-skill.git
 | "帮我加一个 VPN 用户" | 按 `maintenance.md` 添加客户端 |
 | "证书要续期吗" | 检查证书状态，必要时强制续期 |
 | "想加一个直连节点" | 读 `cf-dns-strategy.md` 给出改造方案 |
-| "单点部署但要用户订阅" | 使用 `x-ui-cluster-deploy` 部署一台 VPS 上的主面板、本地节点和订阅 |
-| "两个 VPS 汇聚成一个订阅" | 使用 `x-ui-cluster-deploy` 设计主面板 + 远程节点 + 单订阅 |
-| "两个节点多个协议并创建用户" | 使用 `x-ui-cluster-deploy` 规划多入站、统一 `subId` 和订阅输出 |
+| "单点部署但要用户订阅" | 使用 `LinkRay-deploy` 部署一台 VPS 上的主面板、本地节点和订阅 |
+| "两个 VPS 汇聚成一个订阅" | 使用 `LinkRay-deploy` 设计主面板 + 远程节点 + 单订阅 |
+| "两个节点多个协议并创建用户" | 使用 `LinkRay-deploy` 规划多入站、统一 `subId` 和订阅输出 |
 
-> `x-ui-deploy` 是单 VPS 快速部署；`x-ui-cluster-deploy` 是订阅中心化部署，支持单点和多 VPS 集群，不会沿用单节点流程里禁用订阅和远程面板 localhost-only 的做法。
+> `x-ui-deploy` 是单 VPS 快速部署；`LinkRay-deploy` 是订阅中心化部署，支持单点和多 VPS 集群，不会沿用单节点流程里禁用订阅和远程面板 localhost-only 的做法。
 
 ## 安全设计
 
@@ -163,7 +171,7 @@ skills/x-ui-deploy/
     ├── maintenance.md             # 日常运维 + 安全加固
     └── cf-dns-strategy.md         # 进阶：直连 + CF 兜底双线路
 
-skills/x-ui-cluster-deploy/
+skills/LinkRay-deploy/
 ├── SKILL.md                       # 单点或多 VPS / 多协议 / 单订阅工作流
 ├── references/
 │   └── cluster-blueprint.md        # 主面板、远程节点、订阅和用户聚合蓝图

@@ -1,6 +1,6 @@
-# 3X-UI Cluster Deployment Blueprint
+# LinkRay Deployment Blueprint
 
-Use this reference after `SKILL.md` triggers. It describes the target state and command-level rules for a main-panel 3X-UI single-point or cluster deployment with one subscription URL.
+Use this reference after `SKILL.md` triggers. It describes the target state and command-level rules for a LinkRay-branded 3X-UI single-point or cluster deployment with one subscription URL.
 
 ## Target State
 

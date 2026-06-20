@@ -1,0 +1,4 @@
+interface:
+  display_name: "LinkRay Deploy"
+  short_description: "Deploy LinkRay clustered nodes with one subscription"
+  default_prompt: "Use $LinkRay-deploy to deploy two LinkRay-branded 3X-UI VPS nodes with multiple protocols and one subscription URL."

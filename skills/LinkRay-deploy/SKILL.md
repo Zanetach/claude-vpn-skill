@@ -1,13 +1,13 @@
 ---
-name: x-ui-cluster-deploy
+name: LinkRay-deploy
 description: Use when deploying or operating a 3X-UI or LinkRay-branded single-point or cluster setup with a main panel, local or remote VPS nodes, Reality, Hysteria2, XHTTP, user/client creation, subscription aggregation, Clash/Mihomo subscriptions, node failover, or one subscription URL across multiple Xray inbounds.
 ---
 
-# X-UI Cluster Deploy
+# LinkRay Deploy
 
 ## Overview
 
-Deploy and operate a 3X-UI single-point or cluster setup where one main panel publishes a single subscription URL and local or remote VPS nodes host the actual proxy inbounds. Use this for "one VPS with subscription", "two VPS nodes", "multiple protocols", "Reality", "Hysteria2", "create users", "single subscription", "multi-node 3x-ui", "LinkRay panel name", and similar requests.
+Deploy and operate a LinkRay-branded 3X-UI single-point or cluster setup where one main panel publishes a single subscription URL and local or remote VPS nodes host the actual proxy inbounds. Use this for "one VPS with subscription", "two VPS nodes", "multiple protocols", "Reality", "Hysteria2", "create users", "single subscription", "multi-node 3x-ui", "LinkRay panel name", and similar requests.
 
 This is a subscription-centered workflow, not the quick single-node `x-ui-deploy` workflow. Do not disable subscriptions. Remote node panels must not be localhost-only unless a private overlay network or tunnel makes them reachable from the main panel.
 

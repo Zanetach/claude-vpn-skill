@@ -724,6 +724,65 @@ Wrapper service shape:
 
 The wrapper must stay localhost-only. It is a presentation layer, not a node service.
 
+When routing rules are requested, the wrapper should add `meta-rules-dat` providers to the full Mihomo profile:
+
+```yaml
+rule-providers:
+  private:
+    type: http
+    behavior: domain
+    format: mrs
+    interval: 86400
+    path: ./ruleset/geosite-private.mrs
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/private.mrs"
+  category-ads-all:
+    type: http
+    behavior: domain
+    format: mrs
+    interval: 86400
+    path: ./ruleset/geosite-category-ads-all.mrs
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/category-ads-all.mrs"
+  cn:
+    type: http
+    behavior: domain
+    format: mrs
+    interval: 86400
+    path: ./ruleset/geosite-cn.mrs
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/cn.mrs"
+  geolocation-!cn:
+    type: http
+    behavior: domain
+    format: mrs
+    interval: 86400
+    path: ./ruleset/geosite-geolocation-not-cn.mrs
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/geolocation-!cn.mrs"
+  openai:
+    type: http
+    behavior: domain
+    format: mrs
+    interval: 86400
+    path: ./ruleset/geosite-openai.mrs
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/openai.mrs"
+  telegram:
+    type: http
+    behavior: ipcidr
+    format: mrs
+    interval: 86400
+    path: ./ruleset/geoip-telegram.mrs
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip/telegram.mrs"
+
+rules:
+  - RULE-SET,private,DIRECT
+  - RULE-SET,category-ads-all,REJECT
+  - RULE-SET,telegram,PROXY,no-resolve
+  - RULE-SET,openai,PROXY
+  - RULE-SET,geolocation-!cn,PROXY
+  - RULE-SET,cn,DIRECT
+  - MATCH,PROXY
+```
+
+Add other high-value providers such as `github`, `google`, `youtube`, `netflix`, and `cn-ip` when the target clients support `mrs` rule-providers. Validate with `mihomo -t`.
+
 ```nginx
 server {
     server_name sub.example.com;
@@ -777,6 +836,7 @@ curl -fsS 'https://sub.example.com/store/<subId>' |
 
 curl -fsS 'https://sub.example.com/store/<subId>' -o /tmp/linkray-store.yaml
 grep -nE '^(mixed-port|proxies|proxy-groups|rules):' /tmp/linkray-store.yaml
+grep -nE '^(rule-providers|rules):|RULE-SET' /tmp/linkray-store.yaml
 grep -c '^[[:space:]]*name: ' /tmp/linkray-store.yaml
 mihomo -t -f /tmp/linkray-store.yaml
 ```

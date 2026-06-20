@@ -42,7 +42,8 @@ This is a subscription-centered workflow, not the quick single-node `x-ui-deploy
    - Create inbounds per node and protocol.
    - Create clients once on the main panel and attach the same client identity/subId to every intended inbound.
    - Configure UFW and Fail2Ban after SSH access and API reachability are verified.
-   - If native 3X-UI subscriptions do not import cleanly in Clash/Mihomo, deploy Sub-Store on the main panel VPS as a subscription adapter.
+   - If native 3X-UI subscriptions import but need richer Clash/Mihomo strategy groups and rules, deploy a localhost native profile wrapper in front of `/clash/<subId>`.
+   - Deploy Sub-Store only when format conversion, external subscriptions, or multi-source subscription processing is required.
    - If branding is requested, change only the HTTPS reverse-proxy presentation layer, not the `x-ui` service name, database path, API paths, or node sync identifiers.
    - Verify certificate auto-renewal, subscription decoding, and remote-node API access.
    - Output the subscription URLs, not a pile of separate links.
@@ -82,9 +83,9 @@ Recommended single-point layout:
 - Use DNS-01 certificates for Cloudflare-managed domains when possible, especially wildcard `example.com` + `*.example.com`.
 - Keep subscription service behind a reverse proxy and set `subDomain`; remember direct localhost tests need `Host: sub.example.com` or they will 403.
 - If the panel UI should hand users a Clash/Mihomo-ready link, keep `subPath=/sub/` but set the externally displayed `subURI` to `https://sub.example.com/clash/`. Do not set `subPath=/clash/`; that collides with the native Clash route.
-- Use a subscription adapter such as Sub-Store when a client reports `cannot unmarshal !!str` or `cannot unmarshal !!seq` while importing native 3X-UI links. The adapter must output Clash/Mihomo YAML, and UI clients often need a full profile with `proxies`, visible `proxy-groups`, `rule-providers`, and `rules`.
-- To make 3X-UI UI-created users automatically receive adapted subscriptions, expose a dynamic adapter route such as `https://sub.example.com/store/<subId>` and set only `subURI`/`subClashURI` to `https://sub.example.com/store/`. Keep `subPath=/sub/` and `subClashPath=/clash/` unchanged so the adapter can still read the native source.
-- The dynamic adapter must forward subscription metadata headers from the native 3X-UI source, especially `subscription-userinfo`, plus `profile-title`, `profile-update-interval`, and `profile-web-page-url` when present. Without `subscription-userinfo`, clients may import nodes but show no traffic quota or expiry.
+- Use a localhost native profile wrapper when the operator wants 3X-UI-managed users, traffic, and nodes, but also needs a full Clash/Mihomo profile with visible `proxy-groups`, `rule-providers`, and `rules`. The wrapper should read the native 3X-UI `/clash/<subId>` source and publish the enhanced profile at the same public `/clash/<subId>` path through Nginx.
+- Use Sub-Store only when a client reports `cannot unmarshal !!str` or `cannot unmarshal !!seq`, when external subscription sources are required, or when the operator needs Sub-Store-specific rewrite features.
+- Any adapter or native wrapper must forward subscription metadata headers from the native 3X-UI source, especially `subscription-userinfo`, plus `profile-title`, `profile-update-interval`, and `profile-web-page-url` when present. Without `subscription-userinfo`, clients may import nodes but show no traffic quota or expiry.
 - For Mihomo clients, include `meta-rules-dat` `rule-providers` and visible strategy groups when the user wants routing rules. For a v2ray-agent-style profile, expose `AUTO`, `自动选择`, `故障转移`, `负载均衡`, `节点选择`, `流媒体`, `手动切换`, `全球代理`, `DNS_Proxy`, `Telegram`, `Google`, `YouTube`, `Netflix`, `Spotify`, `HBO`, `Bing`, `OpenAI`, `ClaudeAI`, `Disney`, `GitHub`, `国内媒体`, `本地直连`, and `漏网之鱼`; route each `RULE-SET` to the matching group. Keep the last rule as `MATCH,漏网之鱼`.
 - In cluster mode, run Sub-Store only on the main panel VPS. Do not install it on every remote node.
 - In direct anti-block mode, keep node traffic on DNS-only hostnames such as `ca.example.com` and `la.example.com`; do not use Cloudflare orange-cloud hostnames or CF preferred IPs for Reality/Vision/Hysteria2 nodes.
@@ -114,6 +115,9 @@ https://store.example.com/<random-api-prefix>/download/linkray-full?target=Clash
 
 Dynamic adapted Clash/Mihomo, when 3X-UI should display the adapted link:
 https://sub.example.com/store/<subId>
+
+Enhanced native Clash/Mihomo, when the native wrapper is deployed:
+https://sub.example.com/clash/<subId>
 ```
 
 Do not present panel-exported internal links as the primary deliverable. The cluster deliverable is the subscription URL plus admin notes.
@@ -128,10 +132,10 @@ Do not present panel-exported internal links as the primary deliverable. The clu
 | Creating separate users per protocol | Create one user/subId and attach it to every selected inbound |
 | Exposing node panel ports publicly | Use private networking or firewall allow only the main panel IP |
 | Making users manually edit `/sub/` to `/clash/` | Configure the displayed `subURI` to `/clash/` while leaving `subPath=/sub/` |
-| Feeding a base64 or JSON-array subscription to a Clash profile importer | Put Sub-Store in front and expose `/download/<name>?target=ClashMeta` |
+| Feeding a base64 or JSON-array subscription to a Clash profile importer | Use the native `/clash/<subId>` path; add Sub-Store only if native Clash output still fails |
 | Returning only `proxies:` and the client shows no nodes | Wrap the output as a full profile with `proxy-groups` and `rules` |
 | Returning rules but no visible strategy groups | Add the v2ray-agent-style groups such as `节点选择`, `流媒体`, `OpenAI`, `ClaudeAI`, `GitHub`, `本地直连`, and `漏网之鱼`, then map `RULE-SET`s to those groups |
-| Adapted profile shows no traffic quota or expiry in the client | Forward the native `subscription-userinfo` response header through the `/store/<subId>` wrapper |
+| Adapted profile shows no traffic quota or expiry in the client | Forward the native `subscription-userinfo` response header through the wrapper |
 | Creating one Sub-Store item per 3X-UI user manually | Use a dynamic `/store/<subId>` route with `fakeSub=1&url=<native-clash-url>` |
 | Mixing direct anti-block and CF preferred-IP nodes in one clean mode | Use separate modes; for direct anti-block, expose only Reality/Hysteria2 direct nodes |
 | Saying "all protocols use Reality" | Add Reality profiles where supported, but keep separate usable profiles such as Trojan TLS when full protocol coverage is requested |

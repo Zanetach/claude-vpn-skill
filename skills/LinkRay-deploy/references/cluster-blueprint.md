@@ -599,7 +599,79 @@ sqlite3 /etc/x-ui/x-ui.db \
 
 An enabled client with the right `sub_id` must be linked to every inbound that should appear in the subscription.
 
-## 6.1 Subscription Adapter with Sub-Store
+## 6.1 Enhanced Native Clash Profile
+
+Use this when the operator wants to keep 3X-UI as the only user, traffic, and node authority, but still needs a full Mihomo profile with visible strategy groups and routing rules. This does not require Sub-Store.
+
+Shape:
+
+```text
+client -> https://sub.example.com/clash/<subId>
+  -> Nginx /clash/<subId>
+    -> localhost wrapper 127.0.0.1:3012/clash/<subId>
+      -> reads native 3X-UI source http://127.0.0.1:<sub-port>/clash/<subId> with Host: sub.example.com
+      -> returns enhanced Clash/Mihomo YAML
+```
+
+Keep these 3X-UI settings native:
+
+```sql
+update settings set value='https://sub.example.com/sub/' where key='subURI';
+update settings set value='https://sub.example.com/clash/' where key='subClashURI';
+```
+
+Do not change `subPath=/sub/` or `subClashPath=/clash/`.
+
+The wrapper must:
+
+- read the native 3X-UI `/clash/<subId>` YAML as its source
+- preserve the native `proxies:` entries
+- replace the native minimal `proxy-groups` and `rules` with the v2ray-agent-style groups and MetaCubeX `mrs` rule-providers documented below
+- forward `subscription-userinfo`, `profile-title`, `profile-update-interval`, and `profile-web-page-url`
+- stay bound to `127.0.0.1`
+
+Nginx route:
+
+```nginx
+location ~ ^/clash/([A-Za-z0-9_-]+)/?$ {
+    set $linkray_subid $1;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 3600s;
+    proxy_send_timeout 3600s;
+    proxy_buffering off;
+    proxy_pass http://127.0.0.1:3012/clash/$linkray_subid;
+}
+```
+
+The generic `/sub/<subId>` path can remain direct 3X-UI native output.
+
+Validate:
+
+```bash
+curl -fsSI 'https://sub.example.com/clash/<subId>' |
+  grep -iE '^(subscription-userinfo|profile-title|profile-update-interval|profile-web-page-url):'
+
+curl -fsS 'https://sub.example.com/clash/<subId>' -o /tmp/linkray-clash.yaml
+grep -nE '^(mixed-port|proxies|proxy-groups|rule-providers|rules):' /tmp/linkray-clash.yaml
+grep -nE '^[[:space:]]*- name: (AUTO|自动选择|故障转移|负载均衡|节点选择|流媒体|手动切换|全球代理|DNS_Proxy|Telegram|Google|YouTube|Netflix|Spotify|HBO|Bing|OpenAI|ClaudeAI|Disney|GitHub|国内媒体|本地直连|漏网之鱼)$' /tmp/linkray-clash.yaml
+mihomo -t -f /tmp/linkray-clash.yaml
+```
+
+For direct anti-block mode, the native 3X-UI source should already contain only:
+
+```text
+VLESS Reality
+Trojan Reality
+Hysteria2
+```
+
+Keep Sub-Store removed in this mode unless format conversion or multi-source subscription processing becomes necessary again.
+
+## 6.2 Subscription Adapter with Sub-Store
 
 Use this only when the native 3X-UI subscription imports incorrectly in Clash/Mihomo clients, for example:
 
@@ -1035,7 +1107,7 @@ for host in ca.example.com la.example.com; do
 done
 ```
 
-## 6.2 Server Hardening
+## 6.3 Server Hardening
 
 Enable BBR on every VPS:
 

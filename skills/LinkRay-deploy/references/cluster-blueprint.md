@@ -627,6 +627,7 @@ The wrapper must:
 - read the native 3X-UI `/clash/<subId>` YAML as its source
 - preserve the native `proxies:` entries
 - replace the native minimal `proxy-groups` and `rules` with the v2ray-agent-style groups and MetaCubeX `mrs` rule-providers documented below
+- optionally rewrite direct node `server` values from DNS names to VPS IPs when clients use fake-ip DNS, while preserving Reality `sni`/`servername` and Hysteria2 `sni`
 - forward `subscription-userinfo`, `profile-title`, `profile-update-interval`, and `profile-web-page-url`
 - stay bound to `127.0.0.1`
 
@@ -658,6 +659,13 @@ curl -fsSI 'https://sub.example.com/clash/<subId>' |
 curl -fsS 'https://sub.example.com/clash/<subId>' -o /tmp/linkray-clash.yaml
 grep -nE '^(mixed-port|proxies|proxy-groups|rule-providers|rules):' /tmp/linkray-clash.yaml
 grep -nE '^[[:space:]]*- name: (AUTO|自动选择|故障转移|负载均衡|节点选择|流媒体|手动切换|全球代理|DNS_Proxy|Telegram|Google|YouTube|Netflix|Spotify|HBO|Bing|OpenAI|ClaudeAI|Disney|GitHub|国内媒体|本地直连|漏网之鱼)$' /tmp/linkray-clash.yaml
+python3 - <<'PY'
+import yaml
+with open('/tmp/linkray-clash.yaml') as f:
+    data = yaml.safe_load(f)
+for proxy in data.get('proxies', []):
+    print(proxy.get('name'), proxy.get('server'), proxy.get('sni'), proxy.get('servername'))
+PY
 mihomo -t -f /tmp/linkray-clash.yaml
 ```
 

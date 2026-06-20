@@ -90,6 +90,7 @@ Recommended single-point layout:
 - In cluster mode, run Sub-Store only on the main panel VPS. Do not install it on every remote node.
 - In direct anti-block mode, keep node traffic on DNS-only hostnames such as `ca.example.com` and `la.example.com`; do not use Cloudflare orange-cloud hostnames or CF preferred IPs for Reality/Vision/Hysteria2 nodes.
 - In direct anti-block mode, the adapted subscription should only expose `vless-reality`, `trojan-reality`, and `hysteria2` direct nodes by default. Disable or filter out `vless-xhttp`, Trojan TLS, and Shadowsocks entries if the goal is a clean direct-only client profile.
+- If the client uses fake-ip DNS and proxy server domains resolve to `198.18.0.0/15`, rewrite direct node `server` values to the VPS IPs while preserving Reality `sni`/`servername` and Hysteria2 `sni`. Otherwise the client may dial the fake IP and show `Timeout`.
 - Treat Reality as a transport security option, not a universal wrapper. Use it with TCP VLESS/Trojan inbounds. If the operator wants full protocol coverage, a single subscription can include both Trojan TLS and Trojan Reality as separate profiles. Do not force Reality onto Hysteria2 or Shadowsocks.
 - Hysteria2 must use Xray `protocol=hysteria` with `settings.version=2` and `streamSettings.network=hysteria`; TCP+TLS on the same port is not Hysteria2.
 - Persist BBR as `net.core.default_qdisc=fq` and `net.ipv4.tcp_congestion_control=bbr` where the kernel supports it.

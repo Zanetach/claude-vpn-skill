@@ -712,7 +712,7 @@ https://store.example.com/api-ss-<random>/download/linkray-full?target=ClashMeta
 
 For automatic 3X-UI UI-generated user links, prefer a dynamic route on the existing subscription domain. This avoids creating one Sub-Store subscription item per user.
 
-Do not return only the Sub-Store `proxies:` fragment if the target client imports complete Clash/Mihomo profiles. Some clients validate the YAML but show no usable nodes because there is no `proxy-groups` entry. Add a small localhost wrapper that fetches the dynamic Sub-Store output and returns a full profile containing `mixed-port`, `proxies`, `proxy-groups`, and `rules`.
+Do not return only the Sub-Store `proxies:` fragment if the target client imports complete Clash/Mihomo profiles. Some clients validate the YAML but show no usable nodes because there is no `proxy-groups` entry. Add a small localhost wrapper that fetches the dynamic Sub-Store output and returns a full profile containing `mixed-port`, `proxies`, visible `proxy-groups`, `rule-providers`, and `rules`.
 
 Wrapper service shape:
 
@@ -724,7 +724,77 @@ Wrapper service shape:
 
 The wrapper must stay localhost-only. It is a presentation layer, not a node service.
 
-When routing rules are requested, the wrapper should add `meta-rules-dat` providers to the full Mihomo profile:
+When routing rules are requested, the wrapper should add visible strategy groups and map `meta-rules-dat` providers to those groups. The user should see service groups in the client proxy page, not only raw proxy nodes:
+
+```yaml
+proxy-groups:
+  - name: PROXY
+    type: select
+    proxies:
+      - AUTO
+      - DIRECT
+      - node1-vless-reality
+      - node2-vless-xhttp
+  - name: OpenAI
+    type: select
+    proxies:
+      - AUTO
+      - DIRECT
+      - node1-vless-reality
+      - node2-vless-xhttp
+  - name: GitHub
+    type: select
+    proxies:
+      - AUTO
+      - DIRECT
+      - node1-vless-reality
+      - node2-vless-xhttp
+  - name: Google
+    type: select
+    proxies:
+      - AUTO
+      - DIRECT
+      - node1-vless-reality
+      - node2-vless-xhttp
+  - name: YouTube
+    type: select
+    proxies:
+      - AUTO
+      - DIRECT
+      - node1-vless-reality
+      - node2-vless-xhttp
+  - name: Netflix
+    type: select
+    proxies:
+      - AUTO
+      - DIRECT
+      - node1-vless-reality
+      - node2-vless-xhttp
+  - name: Telegram
+    type: select
+    proxies:
+      - AUTO
+      - DIRECT
+      - node1-vless-reality
+      - node2-vless-xhttp
+  - name: Global
+    type: select
+    proxies:
+      - AUTO
+      - DIRECT
+      - node1-vless-reality
+      - node2-vless-xhttp
+  - name: AUTO
+    type: url-test
+    url: http://www.gstatic.com/generate_204
+    interval: 300
+    tolerance: 80
+    proxies:
+      - node1-vless-reality
+      - node2-vless-xhttp
+```
+
+Use the actual proxy names extracted from the Sub-Store `proxies:` output; the names above are placeholders.
 
 ```yaml
 rule-providers:
@@ -763,6 +833,34 @@ rule-providers:
     interval: 86400
     path: ./ruleset/geosite-openai.mrs
     url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/openai.mrs"
+  github:
+    type: http
+    behavior: domain
+    format: mrs
+    interval: 86400
+    path: ./ruleset/geosite-github.mrs
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/github.mrs"
+  google:
+    type: http
+    behavior: domain
+    format: mrs
+    interval: 86400
+    path: ./ruleset/geosite-google.mrs
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/google.mrs"
+  youtube:
+    type: http
+    behavior: domain
+    format: mrs
+    interval: 86400
+    path: ./ruleset/geosite-youtube.mrs
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/youtube.mrs"
+  netflix:
+    type: http
+    behavior: domain
+    format: mrs
+    interval: 86400
+    path: ./ruleset/geosite-netflix.mrs
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/netflix.mrs"
   telegram:
     type: http
     behavior: ipcidr
@@ -770,18 +868,30 @@ rule-providers:
     interval: 86400
     path: ./ruleset/geoip-telegram.mrs
     url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip/telegram.mrs"
+  cn-ip:
+    type: http
+    behavior: ipcidr
+    format: mrs
+    interval: 86400
+    path: ./ruleset/geoip-cn.mrs
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip/cn.mrs"
 
 rules:
   - RULE-SET,private,DIRECT
   - RULE-SET,category-ads-all,REJECT
-  - RULE-SET,telegram,PROXY,no-resolve
-  - RULE-SET,openai,PROXY
-  - RULE-SET,geolocation-!cn,PROXY
+  - RULE-SET,telegram,Telegram,no-resolve
+  - RULE-SET,openai,OpenAI
+  - RULE-SET,github,GitHub
+  - RULE-SET,google,Google
+  - RULE-SET,youtube,YouTube
+  - RULE-SET,netflix,Netflix
+  - RULE-SET,geolocation-!cn,Global
   - RULE-SET,cn,DIRECT
-  - MATCH,PROXY
+  - RULE-SET,cn-ip,DIRECT,no-resolve
+  - MATCH,Global
 ```
 
-Add other high-value providers such as `github`, `google`, `youtube`, `netflix`, and `cn-ip` when the target clients support `mrs` rule-providers. Validate with `mihomo -t`.
+Validate with `mihomo -t`. If the client only shows `PROXY` and `AUTO`, it is still using an old cached profile or the wrapper is returning only generic groups. Delete and re-import the subscription after changing the wrapper.
 
 ```nginx
 server {
@@ -836,6 +946,7 @@ curl -fsS 'https://sub.example.com/store/<subId>' |
 
 curl -fsS 'https://sub.example.com/store/<subId>' -o /tmp/linkray-store.yaml
 grep -nE '^(mixed-port|proxies|proxy-groups|rules):' /tmp/linkray-store.yaml
+grep -nE '^[[:space:]]*- name: (PROXY|OpenAI|GitHub|Google|YouTube|Netflix|Telegram|Global|AUTO)$' /tmp/linkray-store.yaml
 grep -nE '^(rule-providers|rules):|RULE-SET' /tmp/linkray-store.yaml
 grep -c '^[[:space:]]*name: ' /tmp/linkray-store.yaml
 mihomo -t -f /tmp/linkray-store.yaml

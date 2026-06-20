@@ -2,6 +2,12 @@
   "skill_name": "x-ui-cluster-deploy",
   "evals": [
     {
+      "id": 0,
+      "name": "single-point-subscription",
+      "prompt": "我只有一台 VPS，想单点部署 3x-ui，但也要创建用户和一个订阅地址。",
+      "expected_output": "The skill should choose single-point mode: one VPS hosts the main panel, local node inbounds, and subscription server. It should enable /sub/<subId>, /clash/<subId>, and /json/<subId>, create one stable subId per user, and not require remote node registration."
+    },
+    {
       "id": 1,
       "name": "two-vps-one-subscription",
       "prompt": "我有两个 VPS，想用 3x-ui 汇聚成一个订阅地址，还要能创建用户。",

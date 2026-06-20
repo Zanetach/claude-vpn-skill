@@ -1,8 +1,28 @@
 # 3X-UI Cluster Deployment Blueprint
 
-Use this reference after `SKILL.md` triggers. It describes the target state and command-level rules for a main-panel 3X-UI cluster with one subscription URL.
+Use this reference after `SKILL.md` triggers. It describes the target state and command-level rules for a main-panel 3X-UI single-point or cluster deployment with one subscription URL.
 
 ## Target State
+
+Single-point example:
+
+```text
+VPS-A
+  3x-ui main panel
+  subscription server
+  local node1 inbounds
+
+User imports only:
+  https://sub.example.com/sub/<subId>
+```
+
+DNS:
+
+```text
+panel.example.com  A/AAAA  VPS-A
+sub.example.com    A/AAAA  VPS-A
+node1.example.com  A/AAAA  VPS-A
+```
 
 Two VPS example:
 
@@ -30,6 +50,8 @@ node2.example.com  A/AAAA  VPS-B
 ```
 
 Use Cloudflare orange-cloud only where the selected protocol transport supports it. VLESS XHTTP over TLS can sit behind Cloudflare; direct Trojan or Shadowsocks usually should be DNS-only unless separately wrapped/terminated.
+
+Choose single-point when the user has one VPS or explicitly asks for "单点". Choose cluster when the user has two or more VPS nodes or asks for remote-node failover/aggregation.
 
 ## 1. Install 3X-UI
 
@@ -101,7 +123,9 @@ server {
 
 ## 4. Remote Node API Access
 
-3X-UI nodes are remote 3X-UI panels. The main panel polls each node's API, including `/panel/api/server/status`, with the node's API token.
+Skip this section in single-point mode. Local inbounds on the main panel do not need a remote node registration.
+
+In cluster mode, 3X-UI nodes are remote 3X-UI panels. The main panel polls each node's API, including `/panel/api/server/status`, with the node's API token.
 
 Preferred access:
 
@@ -138,7 +162,13 @@ Click test/probe and require `online` before creating remote inbounds.
 
 ## 5. Inbounds Per Node and Protocol
 
-Start minimal:
+Single-point minimal:
+
+```text
+node1-vless-xhttp-tls
+```
+
+Cluster minimal:
 
 ```text
 node1-vless-xhttp-tls
@@ -149,8 +179,10 @@ Add optional protocols only when requested:
 
 ```text
 node1-trojan-tls
-node2-trojan-tls
 node1-ss-2022
+
+# Cluster mode also adds:
+node2-trojan-tls
 node2-ss-2022
 ```
 
@@ -162,7 +194,7 @@ Use distinct tags/remarks. If using Cloudflare, keep protocol/transport compatib
 | Trojan | TLS direct | Usually DNS-only unless fallback/SNI is designed |
 | Shadowsocks 2022 | Direct port | Do not route through Cloudflare HTTP proxy |
 
-For remote node inbounds, create or sync them from the main panel so the main database knows their `node_id` and can include them in subscriptions.
+For single-point local inbounds, create them directly on the main panel. For remote node inbounds, create or sync them from the main panel so the main database knows their `node_id` and can include them in subscriptions.
 
 ## 6. Users and Subscription Aggregation
 
@@ -184,8 +216,10 @@ Attach that same client identity to every inbound that should appear in the subs
 ```text
 user001_<random>
   node1-vless-xhttp-tls
-  node2-vless-xhttp-tls
   node1-trojan-tls
+
+# Cluster mode also attaches:
+  node2-vless-xhttp-tls
   node2-trojan-tls
 ```
 
@@ -200,7 +234,7 @@ Before handing over the subscription:
 systemctl is-active x-ui
 ss -tlnp | grep -E ':(443|10882|<panel-port>) '
 
-# From VPS-A to each remote node
+# Cluster mode only: from VPS-A to each remote node
 curl -fsS -H "Authorization: Bearer <NODE_API_TOKEN>" \
   https://<node-management-host>:<panel-port>/<base-path>/panel/api/server/status
 
@@ -230,6 +264,24 @@ Included profiles:
   - node2-trojan
 Security:
   - Node API reachable only from VPS-A/private network
+  - Subscription public over HTTPS
+  - Panel admin access restricted
+```
+
+For single-point output, omit remote node API status:
+
+```text
+Main panel: https://panel.example.com/<basePath>
+Mode: single-point
+Local node: node1
+User: user001
+Generic subscription: https://sub.example.com/sub/<subId>
+Clash/Mihomo: https://sub.example.com/clash/<subId>
+JSON: https://sub.example.com/json/<subId>
+Included profiles:
+  - node1-vless
+  - node1-trojan
+Security:
   - Subscription public over HTTPS
   - Panel admin access restricted
 ```

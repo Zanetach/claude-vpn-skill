@@ -1,25 +1,33 @@
 ---
 name: x-ui-cluster-deploy
-description: Use when deploying or operating a 3X-UI cluster with a main panel, one or more remote VPS nodes, multiple protocols, user/client creation, subscription aggregation, Clash/Mihomo subscriptions, node failover, or one subscription URL across multiple Xray inbounds.
+description: Use when deploying or operating a 3X-UI single-point or cluster setup with a main panel, local or remote VPS nodes, multiple protocols, user/client creation, subscription aggregation, Clash/Mihomo subscriptions, node failover, or one subscription URL across multiple Xray inbounds.
 ---
 
 # X-UI Cluster Deploy
 
 ## Overview
 
-Deploy and operate a 3X-UI cluster where one main panel publishes a single subscription URL and one or more VPS nodes host the actual proxy inbounds. Use this for "two VPS nodes", "multiple protocols", "create users", "single subscription", "multi-node 3x-ui", and similar requests.
+Deploy and operate a 3X-UI single-point or cluster setup where one main panel publishes a single subscription URL and local or remote VPS nodes host the actual proxy inbounds. Use this for "one VPS with subscription", "two VPS nodes", "multiple protocols", "create users", "single subscription", "multi-node 3x-ui", and similar requests.
 
-This is a cluster workflow, not the single-node `x-ui-deploy` workflow. Do not disable subscriptions, and do not bind remote node panels to localhost unless a private overlay network makes them reachable from the main panel.
+This is a subscription-centered workflow, not the quick single-node `x-ui-deploy` workflow. Do not disable subscriptions. Remote node panels must not be localhost-only unless a private overlay network or tunnel makes them reachable from the main panel.
+
+## Deployment Modes
+
+| Mode | Use when | Shape |
+|---|---|---|
+| Single-point | One VPS should host panel, subscription, users, and all inbounds | VPS-A: main panel + local node + `sub.example.com` |
+| Cluster | Two or more VPS nodes should appear under one subscription | VPS-A: main panel + optional local node; VPS-B/N: remote nodes |
 
 ## Workflow
 
-1. Collect cluster inputs before SSH:
+1. Collect deployment inputs before SSH:
    - Main panel VPS: IP, SSH user/port/auth, management domain, subscription domain.
-   - Node VPS list: IP, SSH user/port/auth, node domain, management API endpoint.
+   - Mode: single-point or cluster.
+   - Node VPS list for cluster mode: IP, SSH user/port/auth, node domain, management API endpoint.
    - Root domain and DNS provider credentials.
    - Protocols to expose: start with `vless-xhttp-tls`; add `trojan-tls` and `shadowsocks-2022` only if requested.
    - Users: email/remark, quota, expiry, IP limit, and `subId` policy.
-   - Security choice for node API reachability: WireGuard/Tailscale/private network preferred; otherwise firewall allow only the main panel IP.
+   - Security choice for node API reachability in cluster mode: WireGuard/Tailscale/private network preferred; otherwise firewall allow only the main panel IP.
 
 2. Read `references/cluster-blueprint.md` before executing commands or changing a server.
 
@@ -27,8 +35,8 @@ This is a cluster workflow, not the single-node `x-ui-deploy` workflow. Do not d
    - Install 3X-UI on all VPS nodes.
    - Configure DNS and TLS for `panel`, `sub`, and each `nodeN` domain.
    - Configure the main panel subscription server and reverse proxy.
-   - Configure remote node API access so the main panel can call each node.
-   - Register remote nodes in the main panel and verify heartbeat.
+   - In cluster mode, configure remote node API access so the main panel can call each node.
+   - In cluster mode, register remote nodes in the main panel and verify heartbeat.
    - Create inbounds per node and protocol.
    - Create clients once on the main panel and attach the same client identity/subId to every intended inbound.
    - Output the subscription URLs, not a pile of separate links.
@@ -50,13 +58,19 @@ Recommended two-VPS layout:
 | Main panel + local node | VPS-A | `panel.example.com`, `sub.example.com`, `node1.example.com` |
 | Remote node | VPS-B | `node2.example.com`, private/API management endpoint |
 
+Recommended single-point layout:
+
+| Role | Host | Public names |
+|---|---|---|
+| Main panel + local node + subscription | VPS-A | `panel.example.com`, `sub.example.com`, `node1.example.com` |
+
 ## Hard Requirements
 
 - Keep one subscription authority: the main panel.
 - Enable the subscription server on the main panel.
 - Do not use the single-node hardening that sets `subEnable=false`.
-- Remote node panels must be reachable from the main panel by API token, mTLS, pinned HTTPS, or a private overlay route.
-- Remote node panel/API ports must not be open to the world. Restrict by firewall or private networking.
+- In cluster mode, remote node panels must be reachable from the main panel by API token, mTLS, pinned HTTPS, or a private overlay route.
+- In cluster mode, remote node panel/API ports must not be open to the world. Restrict by firewall or private networking.
 - Use one stable `subId` per user across all selected inbounds and protocols.
 - Use unique remarks/tags per node/protocol so subscriptions are readable, such as `node1-vless`, `node2-trojan`.
 - Prefer PostgreSQL on the main panel if managing many clients or many nodes; SQLite is acceptable for a small two-node personal deployment.
@@ -83,6 +97,7 @@ Do not present panel-exported internal links as the primary deliverable. The clu
 | Mistake | Correct action |
 |---|---|
 | Running the original single-node skill unchanged | Use this skill; original disables subscriptions and localhost-binds the panel |
+| Treating single-point as no-subscription | Single-point still enables the main subscription server |
 | Making both VPS share one DNS name | Use distinct node domains or host overrides; avoid random DNS routing |
 | Creating separate users per protocol | Create one user/subId and attach it to every selected inbound |
 | Exposing node panel ports publicly | Use private networking or firewall allow only the main panel IP |

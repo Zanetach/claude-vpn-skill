@@ -719,10 +719,13 @@ Wrapper service shape:
 ```text
 127.0.0.1:3012/store/<subId>
   -> reads 127.0.0.1:3011/api-ss-<random>/download/linkray-dynamic?...url=https://sub.example.com/clash/<subId>
+  -> reads response metadata from https://sub.example.com/clash/<subId>
   -> returns full Clash/Mihomo YAML profile
 ```
 
 The wrapper must stay localhost-only. It is a presentation layer, not a node service.
+
+Forward subscription metadata headers from the native 3X-UI source to the adapted response. At minimum, forward `subscription-userinfo`; also forward `profile-title`, `profile-update-interval`, `profile-web-page-url`, and `content-disposition` when present. Clients such as FlClash use `subscription-userinfo` to display used traffic, total traffic, and expiry. If this header is dropped, the adapted profile can still import and connect, but the profile card will not show traffic quota or time.
 
 When routing rules are requested, the wrapper should add visible strategy groups and map `meta-rules-dat` providers to those groups. The user should see v2ray-agent-style service groups in the client proxy page, not only raw proxy nodes.
 
@@ -991,6 +994,9 @@ grep -c '^[[:space:]]*name: ' /tmp/linkray-full.yaml
 
 curl -fsS 'https://sub.example.com/store/<subId>' |
   awk 'NR==1 {print}'
+
+curl -fsSI 'https://sub.example.com/store/<subId>' |
+  grep -iE '^(subscription-userinfo|profile-title|profile-update-interval|profile-web-page-url):'
 
 curl -fsS 'https://sub.example.com/store/<subId>' -o /tmp/linkray-store.yaml
 grep -nE '^(mixed-port|proxies|proxy-groups|rules):' /tmp/linkray-store.yaml

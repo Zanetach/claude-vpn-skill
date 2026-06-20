@@ -727,6 +727,23 @@ The wrapper must stay localhost-only. It is a presentation layer, not a node ser
 
 Forward subscription metadata headers from the native 3X-UI source to the adapted response. At minimum, forward `subscription-userinfo`; also forward `profile-title`, `profile-update-interval`, `profile-web-page-url`, and `content-disposition` when present. Clients such as FlClash use `subscription-userinfo` to display used traffic, total traffic, and expiry. If this header is dropped, the adapted profile can still import and connect, but the profile card will not show traffic quota or time.
 
+For direct anti-block mode, filter the adapted `proxies:` list to direct-resistant protocols only:
+
+```text
+keep:
+  vless + reality
+  trojan + reality
+  hysteria2
+
+remove from the user-facing profile:
+  vless-xhttp / xhttp over Cloudflare
+  trojan-tls
+  shadowsocks-2022
+  any node that uses a Cloudflare orange-cloud hostname or preferred IP path
+```
+
+The original 3X-UI inbounds can be disabled after the direct profile is verified. Back up `/etc/x-ui/x-ui.db` before disabling inbounds, then restart `x-ui` and verify only the direct ports remain listening.
+
 When routing rules are requested, the wrapper should add visible strategy groups and map `meta-rules-dat` providers to those groups. The user should see v2ray-agent-style service groups in the client proxy page, not only raw proxy nodes.
 
 Required strategy groups for the full profile:
@@ -1000,10 +1017,22 @@ curl -fsSI 'https://sub.example.com/store/<subId>' |
 
 curl -fsS 'https://sub.example.com/store/<subId>' -o /tmp/linkray-store.yaml
 grep -nE '^(mixed-port|proxies|proxy-groups|rules):' /tmp/linkray-store.yaml
+python3 - <<'PY'
+import yaml
+with open('/tmp/linkray-store.yaml') as f:
+    data = yaml.safe_load(f)
+for proxy in data.get('proxies', []):
+    print(proxy.get('name'), proxy.get('type'), proxy.get('server'), proxy.get('network'), bool(proxy.get('reality-opts')))
+PY
 grep -nE '^[[:space:]]*- name: (AUTO|自动选择|故障转移|负载均衡|节点选择|流媒体|手动切换|全球代理|DNS_Proxy|Telegram|Google|YouTube|Netflix|Spotify|HBO|Bing|OpenAI|ClaudeAI|Disney|GitHub|国内媒体|本地直连|漏网之鱼)$' /tmp/linkray-store.yaml
 grep -nE '^(rule-providers|rules):|RULE-SET' /tmp/linkray-store.yaml
 grep -c '^[[:space:]]*name: ' /tmp/linkray-store.yaml
 mihomo -t -f /tmp/linkray-store.yaml
+
+for host in ca.example.com la.example.com; do
+  nc -vz -w 5 "$host" 9444
+  nc -vz -w 5 "$host" 9445
+done
 ```
 
 ## 6.2 Server Hardening

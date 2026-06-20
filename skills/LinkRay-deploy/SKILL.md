@@ -17,6 +17,7 @@ This is a subscription-centered workflow, not the quick single-node `x-ui-deploy
 |---|---|---|
 | Single-point | One VPS should host panel, subscription, users, and all inbounds | VPS-A: main panel + local node + `sub.example.com` |
 | Cluster | Two or more VPS nodes should appear under one subscription | VPS-A: main panel + optional local node; VPS-B/N: remote nodes |
+| Direct anti-block | The operator wants direct VPS protocols and no Cloudflare proxy path | DNS-only node domains + VLESS Reality / Trojan Reality / Hysteria2 |
 
 ## Workflow
 
@@ -25,7 +26,7 @@ This is a subscription-centered workflow, not the quick single-node `x-ui-deploy
    - Mode: single-point or cluster.
    - Node VPS list for cluster mode: IP, SSH user/port/auth, node domain, management API endpoint.
    - Root domain and DNS provider credentials.
-   - Protocols to expose: start with `vless-xhttp-tls`; add `vless-reality`, `trojan-reality`, `hysteria2`, `trojan-tls`, and `shadowsocks-2022` only when requested and client support is clear.
+   - Protocols to expose: for Cloudflare path, start with `vless-xhttp-tls`; for direct anti-block mode, use `vless-reality`, `trojan-reality`, and `hysteria2`, and remove XHTTP/Cloudflare, Trojan TLS, and Shadowsocks from the user-facing subscription unless explicitly requested.
    - Users: email/remark, quota, expiry, IP limit, and `subId` policy.
    - Security choice for node API reachability in cluster mode: WireGuard/Tailscale/private network preferred; otherwise firewall allow only the main panel IP.
 
@@ -86,6 +87,8 @@ Recommended single-point layout:
 - The dynamic adapter must forward subscription metadata headers from the native 3X-UI source, especially `subscription-userinfo`, plus `profile-title`, `profile-update-interval`, and `profile-web-page-url` when present. Without `subscription-userinfo`, clients may import nodes but show no traffic quota or expiry.
 - For Mihomo clients, include `meta-rules-dat` `rule-providers` and visible strategy groups when the user wants routing rules. For a v2ray-agent-style profile, expose `AUTO`, `自动选择`, `故障转移`, `负载均衡`, `节点选择`, `流媒体`, `手动切换`, `全球代理`, `DNS_Proxy`, `Telegram`, `Google`, `YouTube`, `Netflix`, `Spotify`, `HBO`, `Bing`, `OpenAI`, `ClaudeAI`, `Disney`, `GitHub`, `国内媒体`, `本地直连`, and `漏网之鱼`; route each `RULE-SET` to the matching group. Keep the last rule as `MATCH,漏网之鱼`.
 - In cluster mode, run Sub-Store only on the main panel VPS. Do not install it on every remote node.
+- In direct anti-block mode, keep node traffic on DNS-only hostnames such as `ca.example.com` and `la.example.com`; do not use Cloudflare orange-cloud hostnames or CF preferred IPs for Reality/Vision/Hysteria2 nodes.
+- In direct anti-block mode, the adapted subscription should only expose `vless-reality`, `trojan-reality`, and `hysteria2` direct nodes by default. Disable or filter out `vless-xhttp`, Trojan TLS, and Shadowsocks entries if the goal is a clean direct-only client profile.
 - Treat Reality as a transport security option, not a universal wrapper. Use it with TCP VLESS/Trojan inbounds. If the operator wants full protocol coverage, a single subscription can include both Trojan TLS and Trojan Reality as separate profiles. Do not force Reality onto Hysteria2 or Shadowsocks.
 - Hysteria2 must use Xray `protocol=hysteria` with `settings.version=2` and `streamSettings.network=hysteria`; TCP+TLS on the same port is not Hysteria2.
 - Persist BBR as `net.core.default_qdisc=fq` and `net.ipv4.tcp_congestion_control=bbr` where the kernel supports it.
@@ -130,6 +133,7 @@ Do not present panel-exported internal links as the primary deliverable. The clu
 | Returning rules but no visible strategy groups | Add the v2ray-agent-style groups such as `节点选择`, `流媒体`, `OpenAI`, `ClaudeAI`, `GitHub`, `本地直连`, and `漏网之鱼`, then map `RULE-SET`s to those groups |
 | Adapted profile shows no traffic quota or expiry in the client | Forward the native `subscription-userinfo` response header through the `/store/<subId>` wrapper |
 | Creating one Sub-Store item per 3X-UI user manually | Use a dynamic `/store/<subId>` route with `fakeSub=1&url=<native-clash-url>` |
+| Mixing direct anti-block and CF preferred-IP nodes in one clean mode | Use separate modes; for direct anti-block, expose only Reality/Hysteria2 direct nodes |
 | Saying "all protocols use Reality" | Add Reality profiles where supported, but keep separate usable profiles such as Trojan TLS when full protocol coverage is requested |
 | Creating Hysteria2 as TCP+TLS | Set `streamSettings.network=hysteria` and verify UDP listening |
 | Adding too many protocols first | Start with VLESS/XHTTP/TLS; add Reality/Hysteria2/Trojan/SS after the base subscription works |

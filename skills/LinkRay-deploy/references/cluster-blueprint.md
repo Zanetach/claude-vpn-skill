@@ -599,7 +599,128 @@ sqlite3 /etc/x-ui/x-ui.db \
 
 An enabled client with the right `sub_id` must be linked to every inbound that should appear in the subscription.
 
-## 6.1 Server Hardening
+## 6.1 Subscription Adapter with Sub-Store
+
+Use this only when the native 3X-UI subscription imports incorrectly in Clash/Mihomo clients, for example:
+
+```text
+yaml: unmarshal errors:
+  line 1: cannot unmarshal !!str ... into config.RawConfig
+  line 1: cannot unmarshal !!seq into config.RawConfig
+```
+
+Those errors mean the client received the wrong top-level format for a full Clash/Mihomo profile. A raw base64 link list is a string, and a JSON share list is a sequence. A Clash/Mihomo profile importer expects a YAML mapping, usually starting with `proxies:`.
+
+Run Sub-Store only on the main panel VPS. Remote nodes do not need Docker, Node.js, or a Sub-Store process.
+
+Node.js direct deployment shape:
+
+```bash
+# On VPS-A only.
+mkdir -p /opt/sub-store/data
+git clone https://github.com/sub-store-org/Sub-Store.git /opt/sub-store/app
+cd /opt/sub-store/app/backend
+pnpm install --frozen-lockfile
+pnpm bundle:esbuild
+```
+
+Systemd environment:
+
+```text
+SUB_STORE_BACKEND_API_HOST=127.0.0.1
+SUB_STORE_BACKEND_API_PORT=3011
+SUB_STORE_BACKEND_PREFIX=1
+SUB_STORE_FRONTEND_BACKEND_PATH=/api-ss-<random>
+SUB_STORE_DATA_BASE_PATH=/opt/sub-store/data
+```
+
+Systemd service:
+
+```ini
+[Unit]
+Description=Sub-Store backend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/sub-store/app/backend
+EnvironmentFile=/etc/default/sub-store
+ExecStart=/usr/local/bin/node /opt/sub-store/app/backend/sub-store.min.js
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+```
+
+The `SUB_STORE_BACKEND_PREFIX=1` line is required. Without it, `SUB_STORE_FRONTEND_BACKEND_PATH` is only frontend metadata and the random public path returns 404.
+
+Nginx pattern:
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name store.example.com;
+
+    ssl_certificate /etc/ssl/example/fullchain.cer;
+    ssl_certificate_key /etc/ssl/example/example.com.key;
+
+    location = / {
+        return 302 https://sub-store.vercel.app/?api=https://store.example.com/api-ss-<random>;
+    }
+
+    location ^~ /api-ss-<random>/ {
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+        proxy_buffering off;
+        proxy_pass http://127.0.0.1:3011;
+    }
+
+    location / { return 404; }
+}
+```
+
+Create a full adapter subscription from the 3X-UI Clash source:
+
+```bash
+API='http://127.0.0.1:3011/api-ss-<random>'
+
+curl -fsS -X POST \
+  -H 'Content-Type: application/json' \
+  --data-binary '{
+    "name": "linkray-full",
+    "source": "remote",
+    "url": "https://sub.example.com/clash/<subId>",
+    "ua": "clash-meta",
+    "process": [],
+    "ignoreFailedRemoteSub": true
+  }' \
+  "$API/api/subs"
+```
+
+Public user-facing adapted URL:
+
+```text
+https://store.example.com/api-ss-<random>/download/linkray-full?target=ClashMeta&includeUnsupportedProxy=true&prettyYaml=true
+```
+
+Verify it starts with a YAML mapping and includes the expected node count:
+
+```bash
+curl -fsS 'https://store.example.com/api-ss-<random>/download/linkray-full?target=ClashMeta&includeUnsupportedProxy=true&prettyYaml=true' |
+  tee /tmp/linkray-full.yaml |
+  awk 'NR==1 {print}'
+
+grep -c '^[[:space:]]*name: ' /tmp/linkray-full.yaml
+```
+
+## 6.2 Server Hardening
 
 Enable BBR on every VPS:
 

@@ -41,6 +41,7 @@ This is a subscription-centered workflow, not the quick single-node `x-ui-deploy
    - Create inbounds per node and protocol.
    - Create clients once on the main panel and attach the same client identity/subId to every intended inbound.
    - Configure UFW and Fail2Ban after SSH access and API reachability are verified.
+   - If native 3X-UI subscriptions do not import cleanly in Clash/Mihomo, deploy Sub-Store on the main panel VPS as a subscription adapter.
    - If branding is requested, change only the HTTPS reverse-proxy presentation layer, not the `x-ui` service name, database path, API paths, or node sync identifiers.
    - Verify certificate auto-renewal, subscription decoding, and remote-node API access.
    - Output the subscription URLs, not a pile of separate links.
@@ -80,6 +81,8 @@ Recommended single-point layout:
 - Use DNS-01 certificates for Cloudflare-managed domains when possible, especially wildcard `example.com` + `*.example.com`.
 - Keep subscription service behind a reverse proxy and set `subDomain`; remember direct localhost tests need `Host: sub.example.com` or they will 403.
 - If the panel UI should hand users a Clash/Mihomo-ready link, keep `subPath=/sub/` but set the externally displayed `subURI` to `https://sub.example.com/clash/`. Do not set `subPath=/clash/`; that collides with the native Clash route.
+- Use a subscription adapter such as Sub-Store when a client reports `cannot unmarshal !!str` or `cannot unmarshal !!seq` while importing native 3X-UI links. The adapter must output a Clash/Mihomo YAML mapping whose first top-level key is usually `proxies:`.
+- In cluster mode, run Sub-Store only on the main panel VPS. Do not install it on every remote node.
 - Treat Reality as a transport security option, not a universal wrapper. Use it with TCP VLESS/Trojan inbounds. If the operator wants full protocol coverage, a single subscription can include both Trojan TLS and Trojan Reality as separate profiles. Do not force Reality onto Hysteria2 or Shadowsocks.
 - Hysteria2 must use Xray `protocol=hysteria` with `settings.version=2` and `streamSettings.network=hysteria`; TCP+TLS on the same port is not Hysteria2.
 - Persist BBR as `net.core.default_qdisc=fq` and `net.ipv4.tcp_congestion_control=bbr` where the kernel supports it.
@@ -99,6 +102,9 @@ https://sub.example.com/clash/<subId>
 
 JSON:
 https://sub.example.com/json/<subId>
+
+Adapted Clash/Mihomo, when Sub-Store is deployed:
+https://store.example.com/<random-api-prefix>/download/linkray-full?target=ClashMeta&includeUnsupportedProxy=true&prettyYaml=true
 ```
 
 Do not present panel-exported internal links as the primary deliverable. The cluster deliverable is the subscription URL plus admin notes.
@@ -113,6 +119,7 @@ Do not present panel-exported internal links as the primary deliverable. The clu
 | Creating separate users per protocol | Create one user/subId and attach it to every selected inbound |
 | Exposing node panel ports publicly | Use private networking or firewall allow only the main panel IP |
 | Making users manually edit `/sub/` to `/clash/` | Configure the displayed `subURI` to `/clash/` while leaving `subPath=/sub/` |
+| Feeding a base64 or JSON-array subscription to a Clash profile importer | Put Sub-Store in front and expose `/download/<name>?target=ClashMeta` |
 | Saying "all protocols use Reality" | Add Reality profiles where supported, but keep separate usable profiles such as Trojan TLS when full protocol coverage is requested |
 | Creating Hysteria2 as TCP+TLS | Set `streamSettings.network=hysteria` and verify UDP listening |
 | Adding too many protocols first | Start with VLESS/XHTTP/TLS; add Reality/Hysteria2/Trojan/SS after the base subscription works |

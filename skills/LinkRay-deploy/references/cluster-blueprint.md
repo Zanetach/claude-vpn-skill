@@ -710,6 +710,47 @@ Public user-facing adapted URL:
 https://store.example.com/api-ss-<random>/download/linkray-full?target=ClashMeta&includeUnsupportedProxy=true&prettyYaml=true
 ```
 
+For automatic 3X-UI UI-generated user links, prefer a dynamic route on the existing subscription domain. This avoids creating one Sub-Store subscription item per user:
+
+```nginx
+server {
+    server_name sub.example.com;
+
+    location ~ ^/store/([A-Za-z0-9_-]+)/?$ {
+        set $linkray_subid $1;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+        proxy_buffering off;
+        proxy_pass http://127.0.0.1:3011/api-ss-<random>/download/linkray-dynamic?target=ClashMeta&includeUnsupportedProxy=true&prettyYaml=true&fakeSub=1&url=https%3A%2F%2Fsub.example.com%2Fclash%2F$linkray_subid;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:10882;
+    }
+}
+```
+
+Then update only the displayed 3X-UI subscription URIs:
+
+```sql
+update settings
+set value='https://sub.example.com/store/'
+where key in ('subURI', 'subClashURI');
+```
+
+Do not change `subPath=/sub/`, `subClashPath=/clash/`, or the native 3X-UI `/clash/<subId>` route. Sub-Store uses the native Clash route as its source.
+
+The UI-created user's copied subscription should then be:
+
+```text
+https://sub.example.com/store/<subId>
+```
+
 Verify it starts with a YAML mapping and includes the expected node count:
 
 ```bash
@@ -718,6 +759,9 @@ curl -fsS 'https://store.example.com/api-ss-<random>/download/linkray-full?targe
   awk 'NR==1 {print}'
 
 grep -c '^[[:space:]]*name: ' /tmp/linkray-full.yaml
+
+curl -fsS 'https://sub.example.com/store/<subId>' |
+  awk 'NR==1 {print}'
 ```
 
 ## 6.2 Server Hardening
